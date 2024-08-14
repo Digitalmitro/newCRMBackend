@@ -2,10 +2,10 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
-require('dotenv').config();
+require("dotenv").config();
 
-const Port = process.env.port
-const secret_key = process.env.secret_key
+const Port = process.env.port;
+const secret_key = process.env.secret_key;
 //mail//
 const nodemailer = require("nodemailer");
 //to protect user data//
@@ -25,7 +25,7 @@ const jwt = require("jsonwebtoken");
 const { NotificationModel } = require("./models/AdminModel/NotificationModel");
 const { MailModel } = require("./models/AdminModel/mailModal");
 // const { DocumentsModel } = require("./models/AdminModel/DocumentsModel");
-const { DocsModel } = require("./models/AdminModel/DocsModel")
+const { DocsModel } = require("./models/AdminModel/DocsModel");
 const { ProjectsModel } = require("./models/AdminModel/ProjectsModel");
 const { NotesModel } = require("./models/UserModel/Notepad");
 const cors = require("cors");
@@ -35,6 +35,7 @@ server.use(cors());
 server.use(express.json());
 const http = require("http");
 const socketIo = require("socket.io");
+const { default: mongoose } = require("mongoose");
 // Create an HTTP server instance
 const httpServer = http.createServer(server);
 
@@ -399,7 +400,7 @@ server.post("/loginadmin", async (req, res) => {
               email: user.email,
               phone: user.phone,
             },
-           secret_key
+            secret_key
           );
           res.json({
             status: "login successful",
@@ -499,7 +500,6 @@ server.get("/projects", async (req, res) => {
   }
 });
 
-
 server.get("/projects/:projectId", async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -539,7 +539,7 @@ server.put("/projects/:projectId", async (req, res) => {
 
 server.delete("/projects/:projectId/tasks/:taskId", async (req, res) => {
   const { projectId, taskId } = req.params;
-  console.log(req.params )
+  console.log(req.params);
   try {
     // Find the project by ID
     const project = await ProjectsModel.findById(projectId);
@@ -548,7 +548,9 @@ server.delete("/projects/:projectId/tasks/:taskId", async (req, res) => {
     }
 
     // Find the task within the project's tasks array by its ID and remove it
-    const taskIndex = project.tasks.findIndex(task => task._id.toString() === taskId);
+    const taskIndex = project.tasks.findIndex(
+      (task) => task._id.toString() === taskId
+    );
     if (taskIndex === -1) {
       return res.status(404).send({ message: "Task not found" });
     }
@@ -769,24 +771,93 @@ server.put("/updateuser", async (req, res) => {
 // All user
 server.get("/alluser", async (req, res) => {
   try {
-    const data = await RegisteruserModal.find();
-    res.send(data);
+    // Step 1: Fetch all users
+    const users = await RegisteruserModal.find();
+    const userIds = users.map((el) => el._id);
+
+    // Step 2: Fetch callbacks, transfers, sales, messages, and attendances concurrently
+    const [callbacks, transfers, sales, messages, attendances] =
+      await Promise.all([
+        CallbackModel.find({ user_id: { $in: userIds } }),
+        TransferModel.find({ user_id: { $in: userIds } }),
+        SaleModel.find({ user_id: { $in: userIds } }),
+        MessageModel.find({ user_id: { $in: userIds } }),
+        AttendanceModel.find({ user_id: { $in: userIds } }),
+      ]);
+
+    // Step 3: Map the fetched data to the respective users
+    const userWithData = users.map((user) => {
+      const userCallbacks = callbacks
+        .filter((callback) => callback.user_id.equals(user._id))
+        .map((callback) => callback._id);
+      const userTransfers = transfers
+        .filter((transfer) => transfer.user_id.equals(user._id))
+        .map((transfer) => transfer._id);
+      const userSales = sales
+        .filter((sale) => sale.user_id.equals(user._id))
+        .map((sale) => sale._id);
+      const userMessages = messages
+        .filter((message) => message.user_id.equals(user._id))
+        .map((message) => message.message);
+      const userAttendances = attendances
+        .filter((attendance) => attendance.user_id.equals(user._id))
+        .map((attendance) => attendance._id);
+
+      return {
+        ...user._doc, // Spread the original user data
+        callback: userCallbacks,
+        transfer: userTransfers,
+        sale: userSales,
+        message: userMessages,
+        attendance: userAttendances,
+      };
+    });
+
+    // Send the response with users and their respective data
+    res.send(userWithData);
   } catch (error) {
     console.log(error);
     res.send(error);
   }
 });
+
 // 1 user
 server.get("/alluser/:id", async (req, res) => {
   const ID = req.params.id;
   try {
-    const data = await RegisteruserModal.find({ _id: ID });
-    res.send(data);
+    // Step 1: Fetch the user
+    let user = await RegisteruserModal.findOne({ _id: ID });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Step 2: Fetch callbacks, transfers, sales, messages, and attendances concurrently
+    const [callbacks, transfers, sales, messages, attendances] =
+      await Promise.all([
+        CallbackModel.find({ user_id: ID }),
+        TransferModel.find({ user_id: ID }),
+        SaleModel.find({ user_id: ID }),
+        MessageModel.find({ user_id: ID }),
+        AttendanceModel.find({ user_id: ID }),
+      ]);
+
+    // Step 3: Add the fetched data to the user object
+    user = user.toObject(); // Convert Mongoose document to plain object
+    user.callback = callbacks;
+    user.transfer = transfers;
+    user.sale = sales;
+    user.message = messages;
+    user.attendance = attendances;
+
+    // Send the response with the user and their respective data
+    res.status(200).json(user);
   } catch (error) {
     console.log(error);
-    res.send(error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
+
 //1 delete
 server.delete("/alluser/:id", async (req, res) => {
   const ID = req.params.id;
@@ -862,10 +933,27 @@ server.post("/callbacks", async (req, res) => {
 });
 //  callBacks Populate by user
 server.get("/callback-user/:id", async (req, res) => {
-  const ID = req.params.id;
   try {
-    const data = await RegisteruserModal.findById(ID).populate("callback");
-    res.send(data);
+    // const data = await RegisteruserModal.findById(ID).populate("callback");
+    const ID = new mongoose.Types.ObjectId(req.params.id);
+
+    let data = await RegisteruserModal.aggregate([
+      {
+        $match: {
+          _id: ID,
+        },
+      },
+      {
+        $lookup: {
+          from: "callbacks",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "callback",
+        },
+      },
+    ]);
+    data = data[0];
+    res.status(200).json(data);
   } catch (error) {
     console.log(error);
     res.status(500).send("Internal Server Error");
@@ -1015,8 +1103,25 @@ server.post("/transfer", async (req, res) => {
 server.get("/transfer-user/:id", async (req, res) => {
   const ID = req.params.id;
   try {
-    const data = await RegisteruserModal.findById(ID).populate("transfer");
-    res.send(data);
+    const ID = new mongoose.Types.ObjectId(req.params.id);
+
+    let data = await RegisteruserModal.aggregate([
+      {
+        $match: {
+          _id: ID,
+        },
+      },
+      {
+        $lookup: {
+          from: "transfers",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "transfer",
+        },
+      },
+    ]);
+    data = data[0];
+    res.status(200).json(data);
   } catch (error) {
     console.log(error);
     res.status(500).send("Internal Server Error");
@@ -1167,8 +1272,25 @@ server.post("/sale", async (req, res) => {
 server.get("/sale-user/:id", async (req, res) => {
   const ID = req.params.id;
   try {
-    const data = await RegisteruserModal.findById(ID).populate("sale");
-    res.send(data);
+    const ID = new mongoose.Types.ObjectId(req.params.id);
+
+    let data = await RegisteruserModal.aggregate([
+      {
+        $match: {
+          _id: ID,
+        },
+      },
+      {
+        $lookup: {
+          from: "sales",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "sale",
+        },
+      },
+    ]);
+    data = data[0];
+    res.status(200).json(data);
   } catch (error) {
     console.log(error);
     res.status(500).send("Internal Server Error");
@@ -1475,11 +1597,10 @@ server.get("/image/:id", async (req, res) => {
 //   }
 // });
 
-
-
 // API to create or update a message
 server.post("/message", async (req, res) => {
-  const { name, email, message,time, senderId, date, status, user_id } = req.body;
+  const { name, email, message, time, senderId, date, status, user_id } =
+    req.body;
 
   try {
     // Check if a message document with the same user_id already exists
@@ -1598,19 +1719,21 @@ server.get("/notepad/:id", async (req, res) => {
   }
 });
 
-
-
-server.post( "/docs", upload.fields([
-    { name: "docs", maxCount: 1 }   // { name: "Client2Photo", maxCount: 1 },
-  ]), async (req, res) => {
+server.post(
+  "/docs",
+  upload.fields([
+    { name: "docs", maxCount: 1 }, // { name: "Client2Photo", maxCount: 1 },
+  ]),
+  async (req, res) => {
     const { docsName } = req.body;
-    console.log(req.files)
+    console.log(req.files);
     // File paths for the uploaded files
-    const docs =  req.files["docs"] && `uploads/${req.files["docs"][0].filename}`;
+    const docs =
+      req.files["docs"] && `uploads/${req.files["docs"][0].filename}`;
     try {
       const newPackage = new DocsModel({
         docsName,
-        docs
+        docs,
         // user_id,
       });
       const docsData = await newPackage.save();
@@ -1632,8 +1755,6 @@ server.get("/docs", async (req, res) => {
   }
 });
 
-
-
 // SERVER
 // server running
 
@@ -1644,5 +1765,5 @@ httpServer.listen(Port, async () => {
   } catch (error) {
     console.log(error);
   }
-  console.log(`server running at port`);
+  console.log(`server running at port ${Port}`);
 });
