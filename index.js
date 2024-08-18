@@ -47,6 +47,10 @@ const io = socketIo(httpServer, {
   },
 });
 
+const connection = require("./config/db");
+
+connection();
+
 // Socket.io connection event
 io.on("connection", (socket) => {
   console.log("New client connected");
@@ -1760,10 +1764,8 @@ server.get("/docs", async (req, res) => {
 
 httpServer.listen(Port, async () => {
   try {
-    await connect;
-    console.log("mongoDb connected");
+    console.log(`server running at port ${Port}`);
   } catch (error) {
     console.log(error);
   }
-  console.log(`server running at port ${Port}`);
 });
