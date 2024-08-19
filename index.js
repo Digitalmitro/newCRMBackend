@@ -1583,9 +1583,49 @@ server.get("/image/:id", async (req, res) => {
 //  message All
 server.get("/employees", async (req, res) => {
   try {
-    // const data = await RegisteruserModal.find().populate("image").select("name email phone");
-
-    const data  = await RegisteruserModal.aggregate([
+    const data = await RegisteruserModal.aggregate([
+      // Lookup for messages
+      {
+        $lookup: {
+          from: "messages",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "empMessages"
+        }
+      },
+      {
+        $unwind: {
+          path: "$empMessages",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Unwind the messages array to access individual messages
+      {
+        $unwind: {
+          path: "$empMessages.messages",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Sort by the message time in descending order to get the most recent message
+      {
+        $sort: {
+          "empMessages.messages.time": -1
+        }
+      },
+      // Group by _id to get the most recent message
+      {
+        $group: {
+          _id: "$_id",
+          name: { $first: "$name" },
+          email: { $first: "$email" },
+          phone: { $first: "$phone" },
+          image: { $first: "$image" },
+          lastMessage: { $first: "$empMessages.messages.message" },
+          lastMessageTime: { $first: "$empMessages.messages.time" },
+          lastMessageSender: { $first: "$empMessages.messages.senderId" }
+        }
+      },
+      // Perform the image lookup
       {
         $lookup: {
           from: 'images',
@@ -1600,21 +1640,31 @@ server.get("/employees", async (req, res) => {
           preserveNullAndEmptyArrays: true
         }
       },
+      // Final projection
       {
         $project: {
           name: 1,
           email: 1,
           phone: 1,
-          image: {$ifNull: ["$empImg", null]}
+          image: { $ifNull: ["$empImg", null] },
+          lastMessage: 1,
+          lastMessageTime: 1,
+          lastMessageSender: 1
         }
+      },
+      // Final sort by lastMessageTime
+      {
+        $sort: { lastMessageTime: -1 }
       }
-    ])
+    ]);
+
     res.status(200).json(data);
   } catch (error) {
     console.log(error);
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 // // Create message populate
 // server.post("/message", async (req, res) => {
