@@ -60,17 +60,19 @@ io.on("connection", (socket) => {
   // Store the user's socket ID on connection
   socket.on("register", (userId) => {
     users[userId] = socket.id;
+    console.log(`User ${userId} registered with socket ID ${socket.id}`);
   });
 
   // Handle sendMsg event
   socket.on("sendMsg", async (msg) => {
     try {
       // Save the message to the database
-      const existingMessages = await MessageModel.findOne({ user_id: msg.senderId });
+      const existingMessages = await MessageModel.findOne({ user_id: msg.userId });
 
       if (existingMessages) {
         existingMessages.messages.push({
           senderId: msg.senderId,
+          receiverId: msg.receiverId,
           name: msg.name,
           email: msg.email,
           message: msg.message,
@@ -82,6 +84,7 @@ io.on("connection", (socket) => {
         const newMessage = new MessageModel({
           messages: [{
             senderId: msg.senderId,
+            receiverId: msg.receiverId,
             name: msg.name,
             email: msg.email,
             message: msg.message,
@@ -97,10 +100,15 @@ io.on("connection", (socket) => {
       console.log("Message saved to the database");
 
       // Send the message to the specific user
-      const recipientSocketId = users[msg.senderId];
+      console.log(users)
+      console.log(`Sender --> ${msg.senderId}`)
+      console.log(`Receiver --> ${msg.receiverId}`)
+
+      const recipientSocketId = users[msg.receiverId];
+      console.log(recipientSocketId)
       if (recipientSocketId) {
         io.to(recipientSocketId).emit("chat message", msg);
-      }
+      } 
     } catch (err) {
       console.error("Error saving message to the database:", err);
     }
@@ -125,6 +133,7 @@ server.use((req, res, next) => {
   const allowedOrigins = [
     "https://digitalmitro.info",
     "http://localhost:5173",
+    "http://localhost:3000",
     "https://admin.digitalmitro.info",
   ];
   const origin = req.headers.origin;
