@@ -51,21 +51,74 @@ const connection = require("./config/db");
 
 connection();
 
-// Socket.io connection event
+// Store connected users and their corresponding socket IDs
+const users = {};
+
 io.on("connection", (socket) => {
   console.log("New client connected");
 
-  // Handle chat message events
-  socket.on("chat message", (msg) => {
-    // Broadcast the message to all connected clients
-    io.emit("chat message", msg);
+  // Store the user's socket ID on connection
+  socket.on("register", (userId) => {
+    users[userId] = socket.id;
+  });
+
+  // Handle sendMsg event
+  socket.on("sendMsg", async (msg) => {
+    try {
+      // Save the message to the database
+      const existingMessages = await MessageModel.findOne({ user_id: msg.senderId });
+
+      if (existingMessages) {
+        existingMessages.messages.push({
+          senderId: msg.senderId,
+          name: msg.name,
+          email: msg.email,
+          message: msg.message,
+          time: msg.time,
+          role: msg.role,
+        });
+        await existingMessages.save();
+      } else {
+        const newMessage = new MessageModel({
+          messages: [{
+            senderId: msg.senderId,
+            name: msg.name,
+            email: msg.email,
+            message: msg.message,
+            time: msg.time,
+            role: msg.role,
+          }],
+          date: new Date().toLocaleDateString(),
+          user_id: msg.userId,
+        });
+        await newMessage.save();
+      }
+
+      console.log("Message saved to the database");
+
+      // Send the message to the specific user
+      const recipientSocketId = users[msg.senderId];
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("chat message", msg);
+      }
+    } catch (err) {
+      console.error("Error saving message to the database:", err);
+    }
   });
 
   // Handle disconnection events
   socket.on("disconnect", () => {
     console.log("Client disconnected");
+    // Remove the disconnected user's socket ID
+    for (let userId in users) {
+      if (users[userId] === socket.id) {
+        delete users[userId];
+        break;
+      }
+    }
   });
 });
+
 
 // Set CORS headers
 server.use((req, res, next) => {
@@ -1517,6 +1570,43 @@ server.get("/image/:id", async (req, res) => {
   }
 });
 
+
+//  message All
+server.get("/employees", async (req, res) => {
+  try {
+    // const data = await RegisteruserModal.find().populate("image").select("name email phone");
+
+    const data  = await RegisteruserModal.aggregate([
+      {
+        $lookup: {
+          from: 'images',
+          localField: 'image',
+          foreignField: "imageUrl",
+          as: "empImg"
+        }
+      },
+      {
+        $unwind: {
+          path: "$empImg",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          name: 1,
+          email: 1,
+          phone: 1,
+          image: {$ifNull: ["$empImg", null]}
+        }
+      }
+    ])
+    res.status(200).json(data);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
 // // Create message populate
 // server.post("/message", async (req, res) => {
 //   const { name, email, message, date, status, user_id } = req.body;
@@ -1549,38 +1639,48 @@ server.get("/image/:id", async (req, res) => {
 //     res.status(500).send("Internal Server Error");
 //   }
 // });
-// //  message All
-// server.get("/message", async (req, res) => {
-//   try {
-//     const data = await MessageModel.find();
-//     res.send(data);
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send("Internal Server Error");
-//   }
-// });
-// //  message by ID
-// server.get("/message/:id", async (req, res) => {
-//   const ID = req.params.id;
-//   try {
-//     const data = await MessageModel.findById(ID);
-//     res.send(data);
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send("Internal Server Error");
-//   }
-// });
-// //  message Populate by user
-// server.get("/message-user/:id", async (req, res) => {
-//   const ID = req.params.id;
-//   try {
-//     const data = await RegisteruserModal.findById(ID).populate("message");
-//     res.send(data);
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send("Internal Server Error");
-//   }
-// });
+
+//  message All
+server.get("/message", async (req, res) => {
+  try {
+    const data = await MessageModel.find();
+    res.status(200).json(data);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+//  message by ID
+server.get("/message/:id", async (req, res) => {
+  const ID = req.params.id;
+  try {
+    const data = await MessageModel.findById(ID);
+    res.send(data);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+//  message Populate by user
+server.get("/message-user/:id", async (req, res) => {
+  try {
+    const ID = new mongoose.Types.ObjectId(req.params.id);
+    const data = await MessageModel.aggregate([{
+      $match: {
+        user_id: ID
+      },
+    }])
+    res.status(200).json({
+      message: "Chat retrieved",
+      success: true,
+      chatData: data
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
 // message update by ID
 // server.put("/messageUpdate/:id", async (req, res) => {
 //   const ID = req.params.id;
