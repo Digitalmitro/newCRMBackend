@@ -1,15 +1,2 @@
-# Ignore node_modules directory
-node_modules/
-
-# Ignore log files
-*.log
-
-# Ignore environment configuration files
+node_modules
 .env
-
-# Ignore build files
-build/
-
-# Ignore editor files
-.vscode/
-.idea/
