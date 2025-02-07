@@ -13,52 +13,57 @@ const calculateWorkingTime = (punchIn, punchOut) => {
 // Punch-In API
 exports.punchIn = async (req, res) => {
   const { userId } = req.user; 
+  const { clientIp } = req.body;
+  
+  if (!clientIp || !userId) {
+    return res.status(400).json({ message: "Missing field" });
+  }
 
   try {
-   
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
     const today = moment().format("YYYY-MM-DD");
-    const holidayOrWeekend = checkWeekendOrHoliday(today);
+    const punchInTime = moment();
 
-    if (holidayOrWeekend) {
-      const newAttendance = new Attendance({
-        currentDate: today,
-        shiftType: "Day",
-        user_id: userId,
-        status: holidayOrWeekend,
-        workStatus: holidayOrWeekend === "Holiday" ? "Full Day" : "Absent",
-        ip: req.ip,
-       
-      });
+    let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
 
-      await newAttendance.save();
-      return res.status(201).json({ message: `${holidayOrWeekend} - Attendance marked automatically`, data: newAttendance });
-    }
-
-    // Otherwise, normal punch-in process
-    const attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
     if (attendance && attendance.isPunchedIn) {
       return res.status(400).json({ message: "User already punched in today" });
     }
 
-    const punchInTime = moment().format("HH:mm");
-    const shiftType = punchInTime >= "10:30" && punchInTime <= "19:30" ? "Day" : "Night";
+    if (attendance) {
+      attendance.punchIn = punchInTime.toDate();
+      attendance.isPunchedIn = true;
+      await attendance.save();
+      return res.status(200).json({ message: "Re-Punch In successful", data: attendance });
+    }
 
-    const newAttendance = new Attendance({
+    const punchInHour = punchInTime.hour();
+    const punchInMinute = punchInTime.minute();
+    const shiftType = punchInHour >= 10 && punchInHour < 20 ? "Day" : "Night";
+
+    let status = "On Time";
+    if ((shiftType === "Day" && (punchInHour > 10 || (punchInHour === 10 && punchInMinute >= 40))) ||
+        (shiftType === "Night" && (punchInHour > 20 || (punchInHour === 20 && punchInMinute >= 0)))) {
+      status = "Late";
+    }
+
+    attendance = new Attendance({
       currentDate: today,
-      punchIn: punchInTime,
+      punchIn: punchInTime.toDate(),
       shiftType: shiftType,
       user_id: userId,
       isPunchedIn: true,
-      ip: req.ip,
-      status: "On Time",
+      ip: clientIp,
+      status: status,
+      workingTime: 0, // Start with 0 work time
     });
 
-    await newAttendance.save();
-    res.status(201).json({ message: "Punch In successful", data: newAttendance });
+    await attendance.save();
+    res.status(201).json({ message: "Punch In successful", data: attendance });
 
   } catch (error) {
     console.error(error);
@@ -83,23 +88,25 @@ exports.punchOut = async (req, res) => {
       return res.status(400).json({ message: "User hasn't punched in today" });
     }
 
-    const punchOutTime = moment().format("HH:mm");
-    const workingTime = calculateWorkingTime(attendance.punchIn, punchOutTime);
+    const punchOutTime = moment();
+    const punchInTime = moment(attendance.punchIn);
 
-    attendance.punchOut = punchOutTime;
-    attendance.workingTime = workingTime;
+    // Calculate work duration for this session
+    const sessionWorkTime = punchOutTime.diff(punchInTime, "minutes"); // Get work time in minutes
+
+    // Update attendance record
+    attendance.punchOut = punchOutTime.toDate();
+    attendance.workingTime += sessionWorkTime; // Accumulate work time
     attendance.isPunchedIn = false;
 
-    // Update status and work status
-    let workStatus = "Full Day"; // Default
-    if (workingTime < 480) {
+    // Set work status based on total working time
+    let workStatus = "Absent";
+    if (attendance.workingTime >= 240 && attendance.workingTime < 480) {
       workStatus = "Half Day";
-    } else if (workingTime > 480) {
-      // workStatus = "Over Time";
-       workStatus = "Full Day";
+    } else if (attendance.workingTime >= 480) {
+      workStatus = "Full Day";
     }
 
-    attendance.status = "On Time";
     attendance.workStatus = workStatus;
 
     await attendance.save();
@@ -211,7 +218,7 @@ exports.getAllAttendance = async (req, res) => {
 };
 
 exports.getUserAttendance = async (req, res) => {
-  const { userId } = req.user; // Get user from token
+  const { userId } = req.user; 
   const { range } = req.query;
 
   let startDate, endDate;
