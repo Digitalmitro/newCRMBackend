@@ -3,6 +3,7 @@ const cors = require('cors')
 const dotenv=require('dotenv')
 const connectDB = require('./config/db');
 const attendanceRoutes = require('./routes/attendanceRoutes')
+const authRoutes = require("./routes/authRoutes");
 
 
 
@@ -20,6 +21,7 @@ app.get('/',(req,res)=>{
 
 })
 app.use('/attendance', attendanceRoutes);
+app.use('/auth',authRoutes)
 
 
 
