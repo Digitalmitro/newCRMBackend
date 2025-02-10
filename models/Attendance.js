@@ -5,6 +5,7 @@ const moment = require("moment");
 const attendanceSchema = new mongoose.Schema({
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   currentDate: { type: Date, required: true },
+  firstPunchIn:{ type: Date},
   punchIn: { type: Date },
   punchOut: { type: Date },
   workingTime: { type: Number, default: 0 }, // Time in minutes
