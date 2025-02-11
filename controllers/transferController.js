@@ -91,9 +91,20 @@ exports.getUserTransfers = async (req, res) => {
 // ✅ Get all transfers
 exports.getAllTransfers = async (req, res) => {
   try {
-    const data = await TransferModel.find().sort({ createdAt: -1 });
-    res.send(data);
-  } catch (error) {
+    const page = parseInt(req.query.page) || 1;  
+    const limit = parseInt(req.query.limit) || 10; 
+    const skip = (page - 1) * limit;
+    const data = await TransferModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit);;
+    const totalTransfer = await TransferModel.countDocuments();
+
+    res.status(200).json({
+      page,
+      limit,
+      totalPages: Math.ceil(totalTransfer / limit),
+      totalTransfer,
+      data,
+    });
+  } catch (error) { 
     console.error(error);
     res.status(500).send(error);
   }

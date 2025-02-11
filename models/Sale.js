@@ -24,4 +24,4 @@ const saleSchema = new mongoose.Schema({
 
 const SaleModel = mongoose.model("sale", saleSchema);
 
-module.exports = { SaleModel };
+module.exports = SaleModel;

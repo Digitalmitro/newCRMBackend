@@ -51,8 +51,21 @@ exports.getSalesByUser = async (req, res) => {
 // Get all sales
 exports.getAllSales = async (req, res) => {
   try {
-    const sales = await SaleModel.find();
-    res.json(sales);
+    const page = parseInt(req.query.page) || 1;  // Default to page 1
+    const limit = parseInt(req.query.limit) || 10; // Default limit is 10
+    const skip = (page - 1) * limit;
+
+    // Get total count (for frontend pagination info)
+    const totalSales = await SaleModel.countDocuments();
+
+    const data = await SaleModel.find().skip(skip).limit(limit);
+    res.json({ page,
+      limit,
+      totalPages: Math.ceil(totalSales / limit),
+      totalSales,
+      data,
+    });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal Server Error" });

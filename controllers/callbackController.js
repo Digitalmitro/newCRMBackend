@@ -64,13 +64,29 @@ exports.getUserCallbacks = async (req, res) => {
 // ✅ Get all callbacks
 exports.getAllCallbacks = async (req, res) => {
   try {
-    const data = await CallbackModel.find();
-    res.send(data);
+    const page = parseInt(req.query.page) || 1;  // Default to page 1
+    const limit = parseInt(req.query.limit) || 10; // Default limit is 10
+    const skip = (page - 1) * limit;
+
+    // Fetch callbacks with pagination
+    const data = await CallbackModel.find().skip(skip).limit(limit);
+
+    // Get total count (for frontend pagination info)
+    const totalCallbacks = await CallbackModel.countDocuments();
+
+    res.status(200).json({
+      page,
+      limit,
+      totalPages: Math.ceil(totalCallbacks / limit),
+      totalCallbacks,
+      data,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send(error);
   }
 };
+
 
 // ✅ Get a single callback by ID
 exports.getCallbackById = async (req, res) => {

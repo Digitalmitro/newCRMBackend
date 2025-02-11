@@ -24,4 +24,4 @@ const transferSchema = new mongoose.Schema({
 
 const TransferModel = mongoose.model("transfer", transferSchema);
 
-module.exports = { TransferModel };
+module.exports =  TransferModel;
