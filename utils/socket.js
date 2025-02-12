@@ -30,7 +30,7 @@ const initSocket = (server) => {
 
       socket.userId = decoded.userId; // Attach userId to socket
       onlineUsers.set(decoded.userId, socket.id); // Store user in online users map
-      console.log(`✅ User connected: ${decoded.userId} | Socket ID: ${socket.id}`);
+      // console.log(`✅ User connected: ${decoded.userId} | Socket ID: ${socket.id}`);
       next();
     });
   });
