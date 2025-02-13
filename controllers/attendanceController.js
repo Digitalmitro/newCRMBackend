@@ -241,7 +241,7 @@ exports.getUserAttendance = async (req, res) => {
     const userAttendance = await Attendance.find({
       user_id: userId,
       currentDate: { $gte: startDate, $lte: endDate },
-    });
+    }).sort({ createdAt: -1 });
 
     res.status(200).json({
       message: `Attendance records from ${startDate} to ${endDate}`,

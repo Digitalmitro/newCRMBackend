@@ -3,8 +3,8 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
  
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "30d" });
+const generateToken = (userId, name) => {
+  return jwt.sign({ userId, name }, process.env.JWT_SECRET, { expiresIn: "30d" });
 };
 
 exports.signup = async (req, res) => {
@@ -50,7 +50,7 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.name);
     res.status(200).json({ message: "Login successful", token, userType: user.type });
   } catch (error) {
     res.status(500).json({ message: "Login failed", error: error.message });
