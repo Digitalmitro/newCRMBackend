@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const moment = require("moment");
 const Attendance = require("../models/Attendance");
 const User = require("../models/User");
+const { checkWeekendOrHoliday } = require("./weekHoliday")
 
 // Function to update attendance
 const autoUpdateAttendance = async (shiftType) => {
@@ -45,8 +46,19 @@ const autoUpdateAttendance = async (shiftType) => {
   }
 };
 
-// 🕘 Schedule for Day shift users (9 AM)
-cron.schedule("0 9 * * *", () => autoUpdateAttendance("Day"));
+// 📌 Export the Function to Use in `server.js`
+const startCronJobs = async () => {
+  console.log("🚀 Starting Cron Jobs...");
 
-// 🕖 Schedule for Night shift users (7 PM)
-cron.schedule("0 19 * * *", () => autoUpdateAttendance("Night"));
+  // ✅ Day Shift: 9 AM
+  cron.schedule("0 9 * * *", () => autoUpdateAttendance("Day"));
+
+  // ✅ Night Shift: 7 PM
+  cron.schedule("0 19 * * *", () => autoUpdateAttendance("Night"));
+  // await autoUpdateAttendance("Day");
+
+  console.log("✅ Cron Jobs Scheduled!");
+ 
+};
+
+module.exports = { startCronJobs };
