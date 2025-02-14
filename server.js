@@ -14,6 +14,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const concernRoutes = require("./routes/concernRoutes");
 const channelRoutes = require("./routes/channelRoutes");
+const channelChatsRoutes = require("./routes/channelChatsRoutes");
 
 dotenv.config();
 connectDB(); // Connect to MongoDB
@@ -36,6 +37,7 @@ app.use("/notification", notificationRoutes);
 app.use("/message", messageRoutes);
 app.use("/concern", concernRoutes);
 app.use("/api", channelRoutes);
+app.use("/channels", channelChatsRoutes);
 
 // ✅ Basic API health check
 app.get('/', (req, res) => {
