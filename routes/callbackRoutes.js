@@ -1,4 +1,5 @@
 const express = require("express");
+const {authMiddleware}=require("../middlewares/authMiddleware")
 const {
   createCallback,
   moveCallbackToSales,
@@ -11,7 +12,7 @@ const {
 
 const router = express.Router();
 
-router.post("/", createCallback);
+router.post("/",authMiddleware, createCallback);
 router.post("/callback-to-sales", moveCallbackToSales);
 router.get("/user/:id", getUserCallbacks);
 router.get("/all", getAllCallbacks);

@@ -4,20 +4,28 @@ const mongoose = require("mongoose");
 
 // Create a new sale and associate with user
 exports.createSale = async (req, res) => {
+  const userId=req.user.userId;
   try {
-    const newSale = new SaleModel(req.body);
+    const { name, email, phone, calldate, domainName, budget, country, address, comments } = req.body;
+    const newSales = new SaleModel({ 
+        name, 
+        email, 
+        phone, 
+        calldate, 
+        domainName, 
+        budget, 
+        country, 
+        address, 
+        comments,
+        user_id: userId 
+    });
+    
+    
+    await newSales.save();
 
-    // Save the sale to the database
-    await newSale.save();
 
-    // Associate the sale with the user
-    await RegisteruserModal.findByIdAndUpdate(
-      req.body.user_id,
-      { $push: { sale: newSale._id } },
-      { new: true }
-    );
-
-    res.json({ message: "Sale created and associated with user", data: newSale });
+    
+    res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -58,7 +66,7 @@ exports.getAllSales = async (req, res) => {
     // Get total count (for frontend pagination info)
     const totalSales = await SaleModel.countDocuments();
 
-    const data = await SaleModel.find().skip(skip).limit(limit);
+    const data = await SaleModel.find().skip(skip).limit(limit).sort({createdAt:-1});
     res.json({ page,
       limit,
       totalPages: Math.ceil(totalSales / limit),

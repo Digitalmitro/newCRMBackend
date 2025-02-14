@@ -5,15 +5,28 @@ const mongoose = require("mongoose");
 
 // ✅ Create a new callback
 exports.createCallback = async (req, res) => {
+  const userId=req.user.userId;
   try {
-    const newCallback = new CallbackModel(req.body);
+    const { name, email, phone, calldate, domainName, budget, country, address, comments } = req.body;
+    const newCallback = new CallbackModel({ 
+        name, 
+        email, 
+        phone, 
+        calldate, 
+        domainName, 
+        budget, 
+        country, 
+        address, 
+        comments,
+        user_id: userId 
+    });
+    
+    
     await newCallback.save();
 
-    await RegisteruserModal.findByIdAndUpdate(req.body.user_id, {
-      $push: { callback: newCallback._id },
-    });
 
-    res.send("Callback created and associated with user");
+    
+    res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
     res.status(500).send("Internal Server Error");
@@ -69,7 +82,7 @@ exports.getAllCallbacks = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Fetch callbacks with pagination
-    const data = await CallbackModel.find().skip(skip).limit(limit);
+    const data = await CallbackModel.find().skip(skip).limit(limit).sort({createdAt:-1});
 
     // Get total count (for frontend pagination info)
     const totalCallbacks = await CallbackModel.countDocuments();

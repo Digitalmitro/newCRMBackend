@@ -1,4 +1,5 @@
 const express = require("express");
+const {authMiddleware}=require("../middlewares/authMiddleware")
 const {
   createTransfer,
   moveTransferToSales,
@@ -12,7 +13,7 @@ const {
 
 const router = express.Router();
 
-router.post("/", createTransfer);
+router.post("/",authMiddleware,  createTransfer);
 router.post("/transfer-to-sales", moveTransferToSales);
 router.post("/transfer-to-callback", moveTransferToCallback);
 router.get("/user/:id", getUserTransfers);

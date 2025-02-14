@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const saleController = require("../controllers/saleController");
+const { authMiddleware } = require("../middlewares/authMiddleware");
 
 // Create a new sale
-router.post("/", saleController.createSale);
+router.post("/", authMiddleware, saleController.createSale);
 
 // Get a sale by user ID (populate)
 router.get("/user/:id", saleController.getSalesByUser);

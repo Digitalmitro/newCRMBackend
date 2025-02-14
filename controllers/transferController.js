@@ -7,14 +7,28 @@ const mongoose = require("mongoose");
 
 // ✅ Create a new transfer
 exports.createTransfer = async (req, res) => {
+  const userId=req.user.userId;
+  
   try {
-    const newTransfer = new TransferModel(req.body);
+    const { name, email, phone, calldate, domainName, budget, country, address, comments } = req.body;
+    const newTransfer = new TransferModel({ 
+        name, 
+        email, 
+        phone, 
+        calldate, 
+        domainName, 
+        budget, 
+        country, 
+        address, 
+        comments,
+        user_id: userId 
+    });
+    
+    
     await newTransfer.save();
 
-    await RegisteruserModal.findByIdAndUpdate(req.body.user_id, {
-      $push: { transfer: newTransfer._id },
-    });
 
+    
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
