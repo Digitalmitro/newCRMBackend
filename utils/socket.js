@@ -40,7 +40,11 @@ const initSocket = (server) => {
     console.log(`✅ Socket connected: ${socket.id}`);
 
     socket.emit("authenticated", { message: "User authenticated", userId: socket.userId });
-
+    socket.on("joinChannel", (channelId) => {
+    socket.join(channelId);
+      console.log(`User ${socket.id} joined channel ${channelId}`);
+     });
+  
     socket.on("disconnect", () => {
       console.log(`⚠️ User disconnected: ${socket.userId}`);
       onlineUsers.delete(socket.userId);
