@@ -16,6 +16,7 @@ const concernRoutes = require("./routes/concernRoutes");
 const channelRoutes = require("./routes/channelRoutes");
 const channelChatsRoutes = require("./routes/channelChatsRoutes");
 
+
 dotenv.config();
 connectDB(); // Connect to MongoDB
 // startCronJobs()
@@ -23,9 +24,12 @@ const app = express();
 const server = http.createServer(app);
 initSocket(server);
 app.use(express.json());
-app.use(cors());
-
-
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "http://localhost:5173"],
+    credentials: true,
+  })
+);
 
 // ✅ Define API routes
 app.use('/attendance', attendanceRoutes);

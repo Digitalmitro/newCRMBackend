@@ -5,7 +5,6 @@ const ChannelInviteSchema = new mongoose.Schema({
     channel: { type: mongoose.Schema.Types.ObjectId, ref: "Channel", required: true },
     invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     email: { type: String, required: true }, // Email of the invited user
-    inviteLink: { type: String, required: true, unique: true }, // Unique invite link
     status: { type: String, enum: ["pending", "accepted", "declined"], default: "pending" },
     createdAt: { type: Date, default: Date.now },
   });

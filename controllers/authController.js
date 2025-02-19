@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const {RegisteradminModal} = require('../models/Admin')
 
  
 const generateToken = (userId, name) => {
@@ -66,3 +67,189 @@ exports.getUserName = async (req,res) =>{
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 }
+
+// Admin Signup
+exports.adminSignup = async (req, res) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    // Check if admin already exists
+    const existingAdmin = await RegisteradminModal.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ message: "Admin already exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new admin
+    const newAdmin = new RegisteradminModal({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+    });
+
+    await newAdmin.save();
+
+    res.status(201).json({ message: "Admin registered successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Admin Login
+exports.adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(422)
+        .json({ message: "Please fill all the fields.", success: false });
+    }
+
+    const adminFound = await RegisteradminModal.findOne({ email });
+
+    if (!adminFound) {
+      return res.status(422).json({ message: "Admin Not Found!", success: false });
+    }
+
+    const passCheck = await bcrypt.compare(password, adminFound.password);
+    if (!passCheck) {
+      return res
+        .status(400)
+        .json({ message: "Invalid login credentials", success: false });
+    }
+
+    // Generate 6-digit OTP
+    const otp = otpGenerator.generate(6, { upperCase: false, specialChars: false });
+    const otpExpiration = new Date(Date.now() + OTP_EXPIRATION_TIME);
+
+    // Save OTP and expiration time
+    adminFound.otp = otp;
+    adminFound.otpExpiration = otpExpiration;
+    await adminFound.save();
+
+    // Send OTP email
+    const emailBody = `<p>Your OTP for login is: <b>${otp}</b></p><p>This OTP is valid for 5 minutes.</p>`;
+    const mailSent = await sendMail(adminFound.email, "Your OTP for Admin Login", emailBody);
+
+    if (mailSent) {
+      return res.status(200).json({
+        message: "OTP sent to email. Please check your email to complete login.",
+        success: true,
+      });
+    } else {
+      return res
+        .status(500)
+        .json({ message: "Failed to send OTP email", success: false });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error", success: false });
+  }
+};
+
+exports.verifyAdminOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res
+        .status(422)
+        .json({ message: "Please provide both email and OTP", success: false });
+    }
+
+    const adminFound = await RegisteradminModal.findOne({ email });
+
+    if (!adminFound) {
+      return res.status(404).json({ message: "Admin Not Found!", success: false });
+    }
+
+    const currentTime = new Date();
+
+    // Check if OTP is correct and not expired
+    if (adminFound.otp === otp && currentTime < adminFound.otpExpiration) {
+      const token = await adminFound.generateAuthToken();
+
+      // Clear OTP and expiration after successful verification
+      adminFound.otp = null;
+      adminFound.otpExpiration = null;
+      await adminFound.save();
+
+      return res.status(200).json({
+        message: "OTP verified successfully, login complete.",
+        token,
+        user: {
+          name: adminFound.name,
+          email: adminFound.email,
+          phone: adminFound.phone,
+          _id: adminFound._id,
+        },
+        success: true,
+      });
+    } else {
+      return res.status(400).json({ message: "Invalid or expired OTP", success: false });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error", success: false });
+  }
+};
+
+//admin use api
+// 🔹 1. Get All Users
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select("-password"); // Exclude password
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔹 2. Get Single User by ID
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔹 3. Update User
+exports.updateUser = async (req, res) => {
+  try {
+    const { name, email, phone, type } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.name = name || user.name;
+    user.email = email || user.email;
+    user.phone = phone || user.phone;
+    user.type = type || user.type;
+
+    const updatedUser = await user.save();
+    res.json(updatedUser);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔹 4. Delete User
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    await user.deleteOne();
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

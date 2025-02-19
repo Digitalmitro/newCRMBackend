@@ -58,3 +58,67 @@ exports.deleteChannel = async (req, res) => {
         res.status(500).json({ error: "Server error", details: error.message });
     }
 };
+
+// 🔹 1. Get Invite Link for a Channel
+exports.getInviteLink = async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const channel = await Channel.findById(channelId);
+      if (!channel) return res.status(404).json({ message: "Channel not found" });
+  
+      res.json({ inviteLink: `/join/${channel.inviteLink}` });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  };
+  
+  // 🔹 2. Send Email Invite
+  exports.inviteByEmail = async (req, res) => {
+    try {
+      const { channelId, email, invitedBy } = req.body;
+  
+      const channel = await Channel.findById(channelId);
+      if (!channel) return res.status(404).json({ message: "Channel not found" });
+  
+      const invite = new ChannelInvite({ channel: channelId, invitedBy, email });
+      await invite.save();
+  
+      // Send email (replace with actual email service)
+      await sendEmailInvite(email, `/join/${invite.inviteLink}`);
+  
+      res.json({ message: "Invite sent successfully" });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  };
+  
+  // 🔹 3. Accept Invite & Join Channel
+  exports.joinChannel = async (req, res) => {
+    try {
+      const { inviteLink } = req.params;
+      const invite = await ChannelInvite.findOne({ inviteLink });
+  
+      if (!invite) return res.status(404).json({ message: "Invalid invite link" });
+  
+      // Find user by email
+      const user = await User.findOne({ email: invite.email });
+      if (!user) return res.status(400).json({ message: "User not found" });
+  
+      const channel = await Channel.findById(invite.channel);
+      if (!channel) return res.status(404).json({ message: "Channel not found" });
+  
+      // Add user to channel if not already added
+      if (!channel.members.includes(user._id)) {
+        channel.members.push(user._id);
+        await channel.save();
+      }
+  
+      // Mark invite as accepted
+      invite.status = "accepted";
+      await invite.save();
+  
+      res.json({ message: "Successfully joined the channel", channel });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  };

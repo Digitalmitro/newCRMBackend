@@ -9,4 +9,9 @@ router.get("/all", channelController.getAllChannels);
 router.get("/:id", channelController.getChannelById);
 router.delete("/:id", channelController.deleteChannel);
 
+//inviate
+router.get("/invite/:channelId", channelController.getInviteLink);
+router.post("/invite", channelController.inviteByEmail);
+router.get("/join/:inviteLink", channelController.joinChannel);
+
 module.exports = router;

@@ -8,7 +8,7 @@ let io;
 const initSocket = (server) => {
   io = socketIo(server, {
     cors: {
-      origin: `${process.env.Client_Url}`, // Update based on frontend URL
+      origin: [process.env.Client_Url, process.env.Admin_Url], // Update based on frontend URL
       methods: ["GET", "POST"],
     },
   });
