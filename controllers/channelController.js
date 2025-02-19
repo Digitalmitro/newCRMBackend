@@ -1,5 +1,6 @@
 const Channel = require("../models/Channels");
-
+const ChannelInvite = require("../models/ChannelInvite");
+const User=require("../models/User")
 // Create a new channel
 exports.createChannel = async (req, res) => {
     try {
@@ -76,19 +77,22 @@ exports.getInviteLink = async (req, res) => {
   exports.inviteByEmail = async (req, res) => {
     try {
       const { channelId, email, invitedBy } = req.body;
+      console.log({ channelId, email, invitedBy })
   
       const channel = await Channel.findById(channelId);
       if (!channel) return res.status(404).json({ message: "Channel not found" });
   
-      const invite = new ChannelInvite({ channel: channelId, invitedBy, email });
+      const invite = new ChannelInvite({ channel: channelId, invitedBy, email });                                         
       await invite.save();
   
       // Send email (replace with actual email service)
-      await sendEmailInvite(email, `/join/${invite.inviteLink}`);
+      // await sendEmailInvite(email, `/join/${invite.inviteLink}`);
   
       res.json({ message: "Invite sent successfully" });
+
     } catch (err) {
       res.status(500).json({ message: err.message });
+      console.error(err)
     }
   };
   
