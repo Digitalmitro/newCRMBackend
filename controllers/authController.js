@@ -2,7 +2,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const {RegisteradminModal} = require('../models/Admin')
-
+const otpGenerator = require("otp-generator");
+const sendMail = require("../services/sendMail")
+const OTP_EXPIRATION_TIME = 5 * 60 * 1000;
  
 const generateToken = (userId, name) => {
   return jwt.sign({ userId, name }, process.env.JWT_SECRET, { expiresIn: "30d" });
@@ -133,8 +135,9 @@ exports.adminLogin = async (req, res) => {
     await adminFound.save();
 
     // Send OTP email
-    const emailBody = `<p>Your OTP for login is: <b>${otp}</b></p><p>This OTP is valid for 5 minutes.</p>`;
+    const emailBody = `Your OTP for login is: ${otp}\n\nThis OTP is valid for 5 minutes.`;
     const mailSent = await sendMail(adminFound.email, "Your OTP for Admin Login", emailBody);
+
 
     if (mailSent) {
       return res.status(200).json({

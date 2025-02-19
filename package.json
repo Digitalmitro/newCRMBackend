@@ -26,6 +26,8 @@
     "moment-timezone": "^0.5.47",
     "mongoose": "^8.10.0",
     "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
+    "otp-generator": "^4.0.1",
     "socket.io": "^4.8.1"
   }
 }
