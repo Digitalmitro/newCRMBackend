@@ -2,6 +2,7 @@ const Attendance = require("../models/Attendance");
 const User = require("../models/User");
 const { checkWeekendOrHoliday } = require("../utils/weekHoliday");
 const moment = require("moment");
+const moments = require("moment-timezone");
 
 // Helper function to calculate working time in minutes
 const calculateWorkingTime = (punchIn, punchOut) => {
@@ -255,3 +256,57 @@ exports.getUserAttendance = async (req, res) => {
   }
 };
 
+// Get Attendance List
+exports.getAttendanceList = async (req, res) => {
+  const userId = req.params.id;
+  const { month, year, date } = req.query;
+
+  try {
+    let query = { user_id: userId };
+
+    // Filter by month and year
+    if (month && year) {
+      const startOfMonth = moments
+        .tz([year, month - 1], "Asia/Kolkata")
+        .startOf("month")
+        .toDate();
+      const endOfMonth = moments
+        .tz([year, month - 1], "Asia/Kolkata")
+        .endOf("month")
+        .toDate();
+
+      query.currentDate = {
+        $gte: startOfMonth,
+        $lte: endOfMonth,
+      };
+    }
+
+    // Filter by exact date
+    if (date) {
+      const specificDate = moments
+        .tz(date, "Asia/Kolkata")
+        .startOf("day")
+        .toDate();
+      const endOfDay = moments.tz(date, "Asia/Kolkata").endOf("day").toDate();
+
+      query.currentDate = {
+        $gte: specificDate,
+        $lte: endOfDay,
+      };
+    }
+
+    const data = await Attendance.find(query).populate("user_id", "name email");
+
+    if (data.length > 0) {
+      res.status(200).json({
+        message: "Attendance data fetched successfully",
+        data: data,
+      });
+    } else {
+      res.status(404).json({ message: "No attendance data found" });
+    }
+  } catch (error) {
+    console.error("Error fetching attendance list:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
