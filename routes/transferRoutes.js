@@ -18,7 +18,7 @@ router.post("/transfer-to-sales", moveTransferToSales);
 router.post("/transfer-to-callback", moveTransferToCallback);
 router.get("/user/:id", getUserTransfers);
 router.get("/all", getAllTransfers);
-router.get("/:id", getTransferById);
+router.get("/user",authMiddleware, getTransferById);
 router.put("/:id", updateTransfer);
 router.delete("/:id", deleteTransfer);
 

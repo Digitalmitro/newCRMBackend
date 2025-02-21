@@ -127,13 +127,32 @@ exports.getAllTransfers = async (req, res) => {
 // ✅ Get a single transfer by ID
 exports.getTransferById = async (req, res) => {
   try {
-    const transfer = await TransferModel.findById(req.params.id);
-    if (!transfer) return res.status(404).send("Transfer not found");
-    res.send(transfer);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send(error);
-  }
+    const user_id = req.user.userId
+   // Pagination parameters
+   const page = parseInt(req.query.page) || 1;
+   const limit = parseInt(req.query.limit) || 10;
+   const skip = (page - 1) * limit;
+
+   // Fetch callbacks only for the logged-in user
+   const data = await TransferModel.find({ user_id })
+     .skip(skip)
+     .limit(limit)
+     .sort({ createdAt: -1 });
+
+   // Get total count for pagination
+   const totalTransfer = await TransferModel.countDocuments({ user_id });
+
+   res.status(200).json({
+     page,
+     limit,
+     totalPages: Math.ceil(totalTransfer/ limit),
+     totalTransfer,
+     data,
+   });
+ } catch (error) {
+   console.error("Error fetching user callbacks:", error);
+   res.status(500).json({ error: "Internal Server Error" });
+ }
 };
 
 // Update a document by ID

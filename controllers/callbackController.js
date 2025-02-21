@@ -100,16 +100,34 @@ exports.getAllCallbacks = async (req, res) => {
   }
 };
 
-
 // ✅ Get a single callback by ID
 exports.getCallbackById = async (req, res) => {
   try {
-    const callback = await CallbackModel.findById(req.params.id);
-    if (!callback) return res.status(404).send("Callback not found");
-    res.send(callback);
+     const user_id = req.user.userId
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Fetch callbacks only for the logged-in user
+    const data = await CallbackModel.find({ user_id })
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    // Get total count for pagination
+    const totalCallbacks = await CallbackModel.countDocuments({ user_id });
+
+    res.status(200).json({
+      page,
+      limit,
+      totalPages: Math.ceil(totalCallbacks / limit),
+      totalCallbacks,
+      data,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).send(error);
+    console.error("Error fetching user callbacks:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 

@@ -16,7 +16,7 @@ router.post("/",authMiddleware, createCallback);
 router.post("/callback-to-sales", moveCallbackToSales);
 router.get("/user/:id", getUserCallbacks);
 router.get("/all", getAllCallbacks);
-router.get("/:id", getCallbackById);
+router.get("/user",authMiddleware, getCallbackById);
 router.put("/:id", updateCallback);
 router.delete("/:id", deleteCallback);
 

@@ -13,7 +13,7 @@ router.get("/user/:id", saleController.getSalesByUser);
 router.get("/all", saleController.getAllSales);
 
 // Get a specific sale by ID
-router.get("/:id", saleController.getSaleById);
+router.get("/user",authMiddleware, saleController.getSaleById);
 
 // Update a sale by ID
 router.put("/:id", saleController.updateSale);
