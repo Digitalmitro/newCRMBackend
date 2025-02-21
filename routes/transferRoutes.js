@@ -9,6 +9,7 @@ const {
   getTransferById,
   updateTransfer,
   deleteTransfer,
+  searchTransfers
 } = require("../controllers/transferController");
 
 const router = express.Router();
@@ -21,5 +22,6 @@ router.get("/all", getAllTransfers);
 router.get("/user",authMiddleware, getTransferById);
 router.put("/:id", updateTransfer);
 router.delete("/:id", deleteTransfer);
+router.get("/search",searchTransfers);
 
 module.exports = router;
