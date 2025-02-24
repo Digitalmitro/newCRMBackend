@@ -82,7 +82,7 @@ exports.getAllCallbacks = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Fetch callbacks with pagination
-    const data = await CallbackModel.find().skip(skip).limit(limit).sort({createdAt:-1});
+    const data = await CallbackModel.find().sort({createdAt:-1});
 
     // Get total count (for frontend pagination info)
     const totalCallbacks = await CallbackModel.countDocuments();

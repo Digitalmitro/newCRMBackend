@@ -20,6 +20,7 @@ const registeradminSchema = mongoose.Schema(
       type: String,
       required: true,
     },
+    type: { type: String, enum: ['Admin', 'SuperAdmin'], required: true },
     otp: {
       type: String,
     },
@@ -36,7 +37,7 @@ registeradminSchema.methods.generateAuthToken = async function () {
  
     let token = jwt.sign(
       { _id: this._id, expiresIn: '30d' },
-      process.env.secret_key
+      process.env.JWT_SECRET
     );
     return token;
   } catch (e) {

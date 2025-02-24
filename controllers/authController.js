@@ -29,10 +29,9 @@ exports.signup = async (req, res) => {
 exports.createUserByAdmin = async (req, res) => {
   try {
     const { name, email, phone, password, type } = req.body;
-
     // Only admin can create users
-    const admin = await User.findById(req.user.userId);
-    if (admin.type !== "admin") return res.status(403).json({ message: "Access denied" });
+    const admin = await RegisteradminModal.findById(req.user._id);
+    if (admin.type !== "Admin") return res.status(403).json({ message: "Access denied" });
 
     const user = new User({ name, email, phone, password, type });
     await user.save();

@@ -108,7 +108,7 @@ exports.getAllTransfers = async (req, res) => {
     const page = parseInt(req.query.page) || 1;  
     const limit = parseInt(req.query.limit) || 10; 
     const skip = (page - 1) * limit;
-    const data = await TransferModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit);;
+    const data = await TransferModel.find().sort({ createdAt: -1 })
     const totalTransfer = await TransferModel.countDocuments();
 
     res.status(200).json({

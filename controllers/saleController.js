@@ -66,7 +66,7 @@ exports.getAllSales = async (req, res) => {
     // Get total count (for frontend pagination info)
     const totalSales = await SaleModel.countDocuments();
 
-    const data = await SaleModel.find().skip(skip).limit(limit).sort({createdAt:-1});
+    const data = await SaleModel.find().sort({createdAt:-1});
     res.json({ page,
       limit,
       totalPages: Math.ceil(totalSales / limit),
