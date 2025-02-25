@@ -7,14 +7,15 @@ const mongoose = require("mongoose");
 exports.createCallback = async (req, res) => {
   const userId=req.user.userId;
   try {
-    const { name, email, phone, calldate, domainName, budget, country, address, comments } = req.body;
+    const { name, email, phone, calldate, domainName, buget, country, address, comments } = req.body;
+    console.log({ name, email, phone, calldate, domainName, buget, country, address, comments })
     const newCallback = new CallbackModel({ 
         name, 
         email, 
         phone, 
         calldate, 
         domainName, 
-        budget, 
+        buget, 
         country, 
         address, 
         comments,

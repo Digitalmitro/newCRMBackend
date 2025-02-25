@@ -157,9 +157,9 @@ exports.getTransferById = async (req, res) => {
 
 // Update a document by ID
 exports.updateTransfer = async (req, res) => {
+
   const packageId = req.params.id;
   const updateData = req.body;
-
   try {
     const updatedPackage = await TransferModel.findByIdAndUpdate(packageId, updateData, { new: true });
 
@@ -172,6 +172,7 @@ exports.updateTransfer = async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "Internal Server Error" });
   }
+
 };
 
 // Delete a document by ID
