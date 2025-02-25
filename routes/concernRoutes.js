@@ -11,7 +11,7 @@ const router = express.Router();
 // Routes
 router.post("/submit", authMiddleware, submitConcern);
 router.get("/all", getAllConcerns);
-router.get("/user/:userId", getConcernsByUser);
+router.get("/user",authMiddleware, getConcernsByUser);
 router.put("/update/:concernId", updateConcernStatus);
 
 module.exports = router;

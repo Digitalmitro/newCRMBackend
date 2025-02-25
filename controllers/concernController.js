@@ -44,7 +44,7 @@ const getAllConcerns = async (req, res) => {
 // 📌 Get Concerns by User ID
 const getConcernsByUser = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const user_id= req.user.userId
     const concerns = await ConcernModel.find({ user_id: userId }).sort({ createdAt: -1 });
 
     if (!concerns.length) {
