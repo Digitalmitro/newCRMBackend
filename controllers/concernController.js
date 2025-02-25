@@ -14,7 +14,7 @@ const submitConcern = async (req, res) => {
       user_id,
       concernType,
       message,
-      ConcernDate,
+      ConcernDate:ConcernDate,
       ActualPunchIn,
       ActualPunchOut,
       status: status || "Pending",
@@ -45,7 +45,7 @@ const getAllConcerns = async (req, res) => {
 const getConcernsByUser = async (req, res) => {
   try {
     const user_id= req.user.userId
-    const concerns = await ConcernModel.find({ user_id: userId }).sort({ createdAt: -1 });
+    const concerns = await ConcernModel.find({ user_id }).sort({ createdAt: -1 });
 
     if (!concerns.length) {
       return res.status(404).json({ success: false, message: "No concerns found for this user" });

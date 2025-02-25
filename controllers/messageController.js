@@ -126,4 +126,72 @@ const getRecentChatUsers = async (req, res) => {
   }
 };
 
-module.exports = { sendMessage, getMessages, getRecentChatUsers };
+const getAllUser = async (req,res) =>{
+  try {
+    const users = await User.find({}, "_id name"); // Fetch all users (ID & Name only)
+    const loggedInUserId = req.user.userId; // Get logged-in user ID
+
+    // Fetch unread messages and last message time for each user
+    const usersWithChatData = await Promise.all(
+      users.map(async (user) => {
+        if (user._id.toString() === loggedInUserId) return null; // Exclude current user
+
+        const lastMessage = await DirectMessage.findOne({
+          $or: [
+            { sender: loggedInUserId, receiver: user._id },
+            { sender: user._id, receiver: loggedInUserId }
+          ]
+        }).sort({ createdAt: -1 }); // Get latest message
+
+        const unreadCount = await DirectMessage.countDocuments({
+          sender: user._id,
+          receiver: loggedInUserId,
+          seen: false,
+        });
+
+        return {
+          id: user._id,
+          name: user.name,
+          unreadMessages: unreadCount,
+          lastMessageTime: lastMessage ? lastMessage.createdAt : null,
+        };
+      })
+    );
+
+    // Filter out null values (current user) and sort by:
+    // 1️⃣ Unread messages first (Descending)
+    // 2️⃣ Recent chat activity (Newest first)
+    const sortedUsers = usersWithChatData
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (a.unreadMessages !== b.unreadMessages) {
+          return b.unreadMessages - a.unreadMessages; // Unread messages first
+        }
+        return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0); // Recent chats next
+      });
+
+    res.json(sortedUsers);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+const readMessage = async (req,res) =>{
+  try {
+    const { senderId } = req.body;
+    const receiverId = req.user.userId;
+
+    await DirectMessage.updateMany(
+      { sender: senderId, receiver: receiverId, seen: false },
+      { $set: { seen: true } }
+    );
+
+    res.json({ message: "Messages marked as read" });
+  } catch (error) {
+    console.error("Error updating messages:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+module.exports = { sendMessage, getMessages, getRecentChatUsers,getAllUser, readMessage };
