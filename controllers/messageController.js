@@ -23,11 +23,13 @@ const sendMessage = async (req, res) => {
 
     if (receiverSocket) {
       io.to(receiverSocket).emit("new-message", newMessage);
+      io.to(receiverSocket).emit("updateUnread");
       console.log(`✅ Message sent to receiver: ${receiver}`);
     }
 
     if (senderSocket) {
       io.to(senderSocket).emit("new-message", newMessage);
+      io.to(senderSocket).emit("updateUnread");
       console.log(`✅ Message sent to sender: ${sender}`);
     }
 
@@ -148,7 +150,7 @@ const getAllUser = async (req,res) =>{
           receiver: loggedInUserId,
           seen: false,
         });
-
+       
         return {
           id: user._id,
           name: user.name,
