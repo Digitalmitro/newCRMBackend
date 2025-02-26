@@ -54,7 +54,7 @@ exports.punchIn = async (req, res) => {
 
     let status = "On Time";
     if ((shiftType === "Day" && (punchInHour > 10 || (punchInHour === 10 && punchInMinute > 40))) ||
-        (shiftType === "Night" && (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 0)))) {
+        (shiftType === "Night" && (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 10)))) {
       status = "Late";
     }
 
@@ -103,13 +103,19 @@ exports.punchOut = async (req, res) => {
     attendance.workingTime += sessionWorkTime; 
     attendance.isPunchedIn = false;
 
+    // let workStatus = "Absent";
+    // if (attendance.workingTime >= 240 && attendance.workingTime < 480) {
+    //   workStatus = "Half Day";
+    // } else if (attendance.workingTime > 480) {
+    //   workStatus = "Full Day";
+    // }
     let workStatus = "Absent";
-    if (attendance.workingTime >= 240 && attendance.workingTime < 480) {
+    if (attendance.workingTime >= 300 && attendance.workingTime < 420) {
       workStatus = "Half Day";
-    } else if (attendance.workingTime > 480) {
+    } else if (attendance.workingTime >= 420) {
       workStatus = "Full Day";
     }
-
+    
     attendance.workStatus = workStatus;
     await attendance.save();
     res.status(200).json({ message: "Punch Out successful", data: attendance });
