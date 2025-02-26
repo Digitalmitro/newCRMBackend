@@ -44,8 +44,9 @@ const getAllConcerns = async (req, res) => {
 // 📌 Get Concerns by User ID
 const getConcernsByUser = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const concerns = await ConcernModel.find({ user_id: userId }).sort({ createdAt: -1 });
+    const user_id= req.user.userId
+    const concerns = await ConcernModel.find({ user_id }).sort({ createdAt: -1 });
+    console.log(user_id)
 
     if (!concerns.length) {
       return res.status(404).json({ success: false, message: "No concerns found for this user" });

@@ -8,6 +8,7 @@ const {
   getCallbackById,
   updateCallback,
   deleteCallback,
+  searchCallbacks
 } = require("../controllers/callbackController");
 
 const router = express.Router();
@@ -19,5 +20,6 @@ router.get("/all", getAllCallbacks);
 router.get("/user",authMiddleware, getCallbackById);
 router.put("/:id", updateCallback);
 router.delete("/:id", deleteCallback);
+router.get("/search", searchCallbacks)
 
 module.exports = router;

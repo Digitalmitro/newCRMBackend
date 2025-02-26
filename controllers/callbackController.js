@@ -8,7 +8,6 @@ exports.createCallback = async (req, res) => {
   const userId=req.user.userId;
   try {
     const { name, email, phone, calldate, domainName, buget, country, address, comments } = req.body;
-    console.log({ name, email, phone, calldate, domainName, buget, country, address, comments })
     const newCallback = new CallbackModel({ 
         name, 
         email, 
@@ -83,7 +82,7 @@ exports.getAllCallbacks = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Fetch callbacks with pagination
-    const data = await CallbackModel.find().skip(skip).limit(limit).sort({createdAt:-1});
+    const data = await CallbackModel.find().sort({createdAt:-1});
 
     // Get total count (for frontend pagination info)
     const totalCallbacks = await CallbackModel.countDocuments();
@@ -153,5 +152,39 @@ exports.deleteCallback = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send(error);
+  }
+};
+
+
+exports.searchCallbacks = async (req, res) => {
+  try {
+    const { email, phone, domainName, page = 1, limit = 10 } = req.query;
+    const query = {};
+
+    if (email) query.email = { $regex: email, $options: "i" };
+    if (phone) query.phone = { $regex: phone, $options: "i" };
+    if (domainName) query.domainName = { $regex: domainName, $options: "i" };
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch matching callbacks with pagination
+    const data = await CallbackModel.find(query)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    // Count total documents that match the query
+    const totalCount = await CallbackModel.countDocuments(query);
+
+    res.status(200).json({
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+      data,
+    });
+  } catch (error) {
+    console.error("Error searching callbacks:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };

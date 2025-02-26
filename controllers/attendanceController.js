@@ -1,4 +1,7 @@
 const Attendance = require("../models/Attendance");
+const CallBack = require("../models/CallBack");
+const Sale = require("../models/Sale");
+const Transfer = require("../models/Transfer");
 const User = require("../models/User");
 const { checkWeekendOrHoliday } = require("../utils/weekHoliday");
 const moment = require("moment");
@@ -262,7 +265,7 @@ exports.getAttendanceList = async (req, res) => {
   const { month, year, date } = req.query;
 
   try {
-    let query = { user_id: userId };
+    let query = { user_id: userId};
 
     // Filter by month and year
     if (month && year) {
@@ -308,5 +311,136 @@ exports.getAttendanceList = async (req, res) => {
   } catch (error) {
     console.error("Error fetching attendance list:", error);
     res.status(500).send("Internal Server Error");
+  }
+};
+
+// exports.getUserAttendance = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.id).populate("attendance").select("-password");
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     res.status(200).json(user);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// };
+
+// Get attendance list with filters (month, year, date)
+exports.getAttendanceListforadmin = async (req, res) => {
+  const { month, year, date } = req.query;
+  const userId = req.params.id;
+
+  try {
+    let query = { user_id: userId };
+
+    if (month && year) {
+      const startOfMonth = moment.tz({ year, month: month - 1 }, "Asia/Kolkata").startOf("month").toDate();
+      const endOfMonth = moment.tz({ year, month: month - 1 }, "Asia/Kolkata").endOf("month").toDate();
+      query.currentDate = { $gte: startOfMonth, $lte: endOfMonth };
+    }
+
+    if (date) {
+      const specificDate = moment.tz(date, "Asia/Kolkata").startOf("day").toDate();
+      const endOfDay = moment.tz(date, "Asia/Kolkata").endOf("day").toDate();
+      query.currentDate = { $gte: specificDate, $lte: endOfDay };
+    }
+
+    const data = await Attendance.find(query).select("-__v").sort({createdAt:-1});
+    if (!data.length) return res.status(404).json({ message: "No Data Found" });
+
+    res.status(200).json({ message: "Data Collected Successfully", data });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Get user's punch-in status for today
+exports.getAttendanceStatusforadmin = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const today = moment.tz("Asia/Kolkata").startOf("day").toDate();
+    const tomorrow = moment.tz("Asia/Kolkata").endOf("day").toDate();
+
+    const attendanceRecord = await Attendance.findOne({
+      user_id: userId,
+      currentDate: { $gte: today, $lte: tomorrow },
+    }).sort({ createdAt: -1 });
+
+    if (!attendanceRecord)
+      return res.status(200).json({ isPunchedIn: false, message: "User has not punched in today" });
+
+    const punches = attendanceRecord.punches;
+    if (!punches.length)
+      return res.status(200).json({ isPunchedIn: false, message: "No punch-in records found today" });
+
+    const lastPunch = punches[punches.length - 1];
+
+    res.status(200).json({
+      isPunchedIn: lastPunch.punchIn && !lastPunch.punchOut,
+      message: lastPunch.punchIn && !lastPunch.punchOut ? "User is currently punched in" : "User has punched out",
+      punchInTime: lastPunch.punchIn,
+      punchOutTime: lastPunch.punchOut || null,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Get all attendance records
+exports.getAllAttendanceforadmin = async (req, res) => {
+  try {
+    const data = await Attendance.find().select("-__v");
+    res.status(200).json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+// Admin: Get today's attendance
+exports.getTodaysAttendanceforadmin = async (req, res) => {
+  try {
+    const today = moment.tz("Asia/Kolkata").startOf("day").toDate();
+    const tomorrow = moment.tz("Asia/Kolkata").endOf("day").toDate();
+
+    const todaysAttendance = await Attendance.find({
+      currentDate: { $gte: today, $lte: tomorrow },
+    }).populate('user_id').select("-__v");
+
+    if (!todaysAttendance.length)
+      return res.status(404).json({ message: "No attendance records found for today" });
+
+    res.status(200).json({ message: "Today's attendance data collected successfully", data: todaysAttendance });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};  
+
+exports.getEmployeeDashboard = async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    const [attendanceCount, callbackCount, saleCount, transferCount, projectsCount] = await Promise.all([
+      Attendance.countDocuments({ user_id: userId }),
+      CallBack.countDocuments({ user_id: userId }),
+      Sale.countDocuments({ user_id: userId }),
+      Transfer.countDocuments({ user_id: userId }),
+    ]);
+
+    res.status(200).json({
+      attendance: attendanceCount,
+      callback: callbackCount,
+      sale: saleCount,
+      transfer: transferCount,
+      project: projectsCount,
+    });
+  } catch (error) {
+    console.error("Error fetching employee dashboard data:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
