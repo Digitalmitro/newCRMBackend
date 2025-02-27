@@ -45,7 +45,12 @@ const initSocket = (server) => {
     socket.join(channelId);
       console.log(`User ${socket.id} joined channel ${channelId}`);
      });
-  
+     
+   // ✅ Handle user requesting the list of online users
+   socket.on("getOnlineUsers", () => {
+    const onlineUserIds = Array.from(onlineUsers.keys());
+    socket.emit("onlineUsersList", onlineUserIds);
+  });
     socket.on("disconnect", () => {
       console.log(`⚠️ User disconnected: ${socket.userId}`);
       onlineUsers.delete(socket.userId);

@@ -5,27 +5,34 @@ const mongoose = require("mongoose");
 
 // ✅ Create a new callback
 exports.createCallback = async (req, res) => {
-  const userId=req.user.userId;
+  const userId = req.user.userId;
   try {
-    const { name, email, phone, calldate, domainName, buget, country, address, comments } = req.body;
-    const newCallback = new CallbackModel({ 
-        name, 
-        email, 
-        phone, 
-        calldate, 
-        domainName, 
-        buget, 
-        country, 
-        address, 
-        comments,
-        user_id: userId 
+    const {
+      name,
+      email,
+      phone,
+      calldate,
+      domainName,
+      buget,
+      country,
+      address,
+      comments,
+    } = req.body;
+    const newCallback = new CallbackModel({
+      name,
+      email,
+      phone,
+      calldate,
+      domainName,
+      buget,
+      country,
+      address,
+      comments,
+      user_id: userId,
     });
-    
-    
+
     await newCallback.save();
 
-
-    
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
@@ -64,7 +71,14 @@ exports.getUserCallbacks = async (req, res) => {
     const ID = new mongoose.Types.ObjectId(req.params.id);
     const data = await RegisteruserModal.aggregate([
       { $match: { _id: ID } },
-      { $lookup: { from: "callbacks", localField: "_id", foreignField: "user_id", as: "callback" } },
+      {
+        $lookup: {
+          from: "callbacks",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "callback",
+        },
+      },
     ]);
 
     res.status(200).json(data[0] || {});
@@ -77,12 +91,15 @@ exports.getUserCallbacks = async (req, res) => {
 // ✅ Get all callbacks
 exports.getAllCallbacks = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;  // Default to page 1
+    const page = parseInt(req.query.page) || 1; // Default to page 1
     const limit = parseInt(req.query.limit) || 10; // Default limit is 10
     const skip = (page - 1) * limit;
 
     // Fetch callbacks with pagination
-    const data = await CallbackModel.find().sort({createdAt:-1});
+    const data = await CallbackModel.find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
 
     // Get total count (for frontend pagination info)
     const totalCallbacks = await CallbackModel.countDocuments();
@@ -103,7 +120,7 @@ exports.getAllCallbacks = async (req, res) => {
 // ✅ Get a single callback by ID
 exports.getCallbackById = async (req, res) => {
   try {
-     const user_id = req.user.userId
+    const user_id = req.user.userId;
     // Pagination parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -134,7 +151,11 @@ exports.getCallbackById = async (req, res) => {
 // ✅ Update a callback
 exports.updateCallback = async (req, res) => {
   try {
-    const updatedCallback = await CallbackModel.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updatedCallback = await CallbackModel.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
     if (!updatedCallback) return res.status(404).send("Callback not found");
     res.send("Callback updated successfully");
   } catch (error) {
@@ -146,7 +167,9 @@ exports.updateCallback = async (req, res) => {
 // ✅ Delete a callback
 exports.deleteCallback = async (req, res) => {
   try {
-    const deletedCallback = await CallbackModel.findByIdAndDelete(req.params.id);
+    const deletedCallback = await CallbackModel.findByIdAndDelete(
+      req.params.id
+    );
     if (!deletedCallback) return res.status(404).send("Callback not found");
     res.send("Callback deleted successfully");
   } catch (error) {
@@ -154,7 +177,6 @@ exports.deleteCallback = async (req, res) => {
     res.status(500).send(error);
   }
 };
-
 
 exports.searchCallbacks = async (req, res) => {
   try {

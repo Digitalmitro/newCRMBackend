@@ -1,4 +1,3 @@
-
 const TransferModel = require("../models/Transfer");
 const RegisteruserModal = require("../models/User");
 const CallbackModel = require("../models/CallBack");
@@ -7,28 +6,35 @@ const mongoose = require("mongoose");
 
 // ✅ Create a new transfer
 exports.createTransfer = async (req, res) => {
-  const userId=req.user.userId;
-  
+  const userId = req.user.userId;
+
   try {
-    const { name, email, phone, calldate, domainName, buget, country, address, comments } = req.body;
-    const newTransfer = new TransferModel({ 
-        name, 
-        email, 
-        phone, 
-        calldate, 
-        domainName, 
-        buget, 
-        country, 
-        address, 
-        comments,
-        user_id: userId 
+    const {
+      name,
+      email,
+      phone,
+      calldate,
+      domainName,
+      buget,
+      country,
+      address,
+      comments,
+    } = req.body;
+    const newTransfer = new TransferModel({
+      name,
+      email,
+      phone,
+      calldate,
+      domainName,
+      buget,
+      country,
+      address,
+      comments,
+      user_id: userId,
     });
-    
-    
+
     await newTransfer.save();
 
-
-    
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
@@ -92,7 +98,14 @@ exports.getUserTransfers = async (req, res) => {
     const ID = new mongoose.Types.ObjectId(req.params.id);
     const data = await RegisteruserModal.aggregate([
       { $match: { _id: ID } },
-      { $lookup: { from: "transfers", localField: "_id", foreignField: "user_id", as: "transfer" } },
+      {
+        $lookup: {
+          from: "transfers",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "transfer",
+        },
+      },
     ]);
 
     res.status(200).json(data[0] || {});
@@ -105,10 +118,13 @@ exports.getUserTransfers = async (req, res) => {
 // ✅ Get all transfers
 exports.getAllTransfers = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;  
-    const limit = parseInt(req.query.limit) || 10; 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const data = await TransferModel.find().sort({ createdAt: -1 })
+    const data = await TransferModel.find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     const totalTransfer = await TransferModel.countDocuments();
 
     res.status(200).json({
@@ -118,7 +134,7 @@ exports.getAllTransfers = async (req, res) => {
       totalTransfer,
       data,
     });
-  } catch (error) { 
+  } catch (error) {
     console.error(error);
     res.status(500).send(error);
   }
@@ -127,41 +143,44 @@ exports.getAllTransfers = async (req, res) => {
 // ✅ Get a single transfer by ID
 exports.getTransferById = async (req, res) => {
   try {
-    const user_id = req.user.userId
-   // Pagination parameters
-   const page = parseInt(req.query.page) || 1;
-   const limit = parseInt(req.query.limit) || 10;
-   const skip = (page - 1) * limit;
+    const user_id = req.user.userId;
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-   // Fetch callbacks only for the logged-in user
-   const data = await TransferModel.find({ user_id })
-     .skip(skip)
-     .limit(limit)
-     .sort({ createdAt: -1 });
+    // Fetch callbacks only for the logged-in user
+    const data = await TransferModel.find({ user_id })
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
 
-   // Get total count for pagination
-   const totalTransfer = await TransferModel.countDocuments({ user_id });
+    // Get total count for pagination
+    const totalTransfer = await TransferModel.countDocuments({ user_id });
 
-   res.status(200).json({
-     page,
-     limit,
-     totalPages: Math.ceil(totalTransfer/ limit),
-     totalTransfer,
-     data,
-   });
- } catch (error) {
-   console.error("Error fetching user callbacks:", error);
-   res.status(500).json({ error: "Internal Server Error" });
- }
+    res.status(200).json({
+      page,
+      limit,
+      totalPages: Math.ceil(totalTransfer / limit),
+      totalTransfer,
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching user callbacks:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 };
 
 // Update a document by ID
 exports.updateTransfer = async (req, res) => {
-
   const packageId = req.params.id;
   const updateData = req.body;
   try {
-    const updatedPackage = await TransferModel.findByIdAndUpdate(packageId, updateData, { new: true });
+    const updatedPackage = await TransferModel.findByIdAndUpdate(
+      packageId,
+      updateData,
+      { new: true }
+    );
 
     if (!updatedPackage) {
       return res.status(404).json({ message: "Package not found" });
@@ -172,7 +191,6 @@ exports.updateTransfer = async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "Internal Server Error" });
   }
-
 };
 
 // Delete a document by ID
@@ -225,4 +243,3 @@ exports.searchTransfers = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
-
