@@ -46,7 +46,7 @@ const initSocket = (server) => {
       console.log(`User ${socket.id} joined channel ${channelId}`);
      });
      
-   // ✅ Handle user requesting the list of online users
+  //  // ✅ Handle user requesting the list of online users
    socket.on("getOnlineUsers", () => {
     const onlineUserIds = Array.from(onlineUsers.keys());
     socket.emit("onlineUsersList", onlineUserIds);

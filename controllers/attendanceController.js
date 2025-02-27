@@ -28,7 +28,7 @@ exports.punchIn = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
+  
     const today = moment().format("YYYY-MM-DD");
     const punchInTime = moment();
 
@@ -50,11 +50,11 @@ exports.punchIn = async (req, res) => {
 
     const punchInHour = punchInTime.hour();
     const punchInMinute = punchInTime.minute();
-    const shiftType = punchInHour >= 10 && punchInHour < 20 ? "Day" : "Night";
+    const shiftType = user?.type;
 
     let status = "On Time";
     if ((shiftType === "Day" && (punchInHour > 10 || (punchInHour === 10 && punchInMinute > 40))) ||
-        (shiftType === "Night" && (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 0)))) {
+        (shiftType === "Night" && (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 10)))) {
       status = "Late";
     }
 
@@ -103,13 +103,19 @@ exports.punchOut = async (req, res) => {
     attendance.workingTime += sessionWorkTime; 
     attendance.isPunchedIn = false;
 
+    // let workStatus = "Absent";
+    // if (attendance.workingTime >= 240 && attendance.workingTime < 480) {
+    //   workStatus = "Half Day";
+    // } else if (attendance.workingTime > 480) {
+    //   workStatus = "Full Day";
+    // }
     let workStatus = "Absent";
-    if (attendance.workingTime >= 240 && attendance.workingTime < 480) {
+    if (attendance.workingTime >= 300 && attendance.workingTime < 420) {
       workStatus = "Half Day";
-    } else if (attendance.workingTime > 480) {
+    } else if (attendance.workingTime >= 420) {
       workStatus = "Full Day";
     }
-
+    
     attendance.workStatus = workStatus;
     await attendance.save();
     res.status(200).json({ message: "Punch Out successful", data: attendance });
@@ -444,3 +450,57 @@ exports.getEmployeeDashboard = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+
+const updateTime = async () => {
+  try {
+    const currentDate = new Date("2025-02-19T00:00:00.000+00:00");
+
+    // Fetch attendance records matching the date and shift type
+    const attendances = await Attendance.find({ currentDate, shiftType: "Day" });
+
+    for (let record of attendances) {
+      let punchInTime = new Date("2025-02-19T10:30:00.000+00:00"); // Default punch-in time
+
+      const punchOutTime = record.punchOut ? new Date(record.punchOut) : null;
+
+      let workingTime = 0;
+      let status = "Absent"; // Default status
+
+      if (punchOutTime) {
+        // Calculate working time in minutes
+        workingTime = Math.floor((punchOutTime - punchInTime) / (1000 * 60));
+
+        // Determine attendance status
+        if (workingTime >= 480) {
+          status = "On Time"; // 8 hours or more
+        } else if (workingTime >= 300) {
+          status = "Late"; // 5+ hours but less than 8 hours
+        } else {
+          status = "Half Day"; // Less than 5 hours
+        }
+      } else {
+        status = "Incomplete"; // Punch out missing
+      }
+
+      // Update the record with punchIn time, working time, and status
+      // await Attendance.updateOne(
+      //   { _id: record._id },
+      //   {
+      //     $set: {
+      //       punchIn: punchInTime, // Update punch-in time
+      //       workingTime,
+      //       status,
+      //     },
+      //   }
+      // );
+      
+    }
+    console.log(attendances)
+
+    console.log("✅ Attendance records updated successfully.");
+  } catch (error) {
+    console.error("❌ Error updating attendance:", error);
+  }
+};
+// updateTime()
