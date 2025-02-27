@@ -1,6 +1,9 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const CallBack = require("../models/CallBack");
+const Sale = require("../models/Sale");
+const Transfer = require("../models/Transfer");
 const {RegisteradminModal} = require('../models/Admin')
 const otpGenerator = require("otp-generator");
 const sendMail = require("../services/sendMail")
@@ -206,11 +209,52 @@ exports.verifyAdminOtp = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password"); // Exclude password
-    res.json(users);
+
+    // Get user IDs
+    const userIds = users.map(user => user._id);
+
+    // Count documents for each user ID
+    const callBackCounts = await CallBack.aggregate([
+      { $match: { user_id: { $in: userIds } } },
+      { $group: { _id: "$user_id", count: { $sum: 1 } } }
+    ]);
+
+    const saleCounts = await Sale.aggregate([
+      { $match: { user_id: { $in: userIds } } },
+      { $group: { _id: "$user_id", count: { $sum: 1 } } }
+    ]);
+
+    const transferCounts = await Transfer.aggregate([
+      { $match: { user_id: { $in: userIds } } },
+      { $group: { _id: "$user_id", count: { $sum: 1 } } }
+    ]);
+
+    // Convert counts to a map for easy lookup
+    const getCountMap = (counts) => {
+      return counts.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+      }, {});
+    };
+
+    const callBackMap = getCountMap(callBackCounts);
+    const saleMap = getCountMap(saleCounts);
+    const transferMap = getCountMap(transferCounts);
+
+    // Add counts to user data
+    const usersWithCounts = users.map(user => ({
+      ...user.toObject(),
+      callBackCount: callBackMap[user._id] || 0,
+      saleCount: saleMap[user._id] || 0,
+      transferCount: transferMap[user._id] || 0
+    }));
+
+    res.json(usersWithCounts);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
+
 
 // 🔹 2. Get Single User by ID
 exports.getUserById = async (req, res) => {
