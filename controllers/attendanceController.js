@@ -503,4 +503,4 @@ const updateTime = async () => {
     console.error("❌ Error updating attendance:", error);
   }
 };
-updateTime()
+// updateTime()
