@@ -87,14 +87,14 @@ const updateConcernStatus = async (req, res) => {
 
 const approveConcern = async (req, res) => {
   try {
-    const concern = await ConcernModel.findByIdAndUpdate(
-      {user_id:req.params.id},
+    const concern = await ConcernModel.findOneAndUpdate(
+      { user_id: req.params.id }, // Find concern by user_id
       { status: "Approved" },
       { new: true }
     );
 
     if (!concern) {
-      return res.status(404).json({ message: "Concern not found" });
+      return res.status(404).json({ message: "Concern not found for this user" });
     }
 
     res.status(200).json({ message: "Concern approved successfully", concern });
@@ -103,17 +103,17 @@ const approveConcern = async (req, res) => {
   }
 };
 
-// Reject Concern
+// Reject Concern by user_id
 const rejectConcern = async (req, res) => {
   try {
-    const concern = await ConcernModel.findByIdAndUpdate(
-      {user_id:req.params.id},
+    const concern = await ConcernModel.findOneAndUpdate(
+      { user_id: req.params.id }, // Find concern by user_id
       { status: "Rejected" },
       { new: true }
     );
 
     if (!concern) {
-      return res.status(404).json({ message: "Concern not found" });
+      return res.status(404).json({ message: "Concern not found for this user" });
     }
 
     res.status(200).json({ message: "Concern rejected successfully", concern });
