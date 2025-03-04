@@ -3,7 +3,9 @@ const {
   submitConcern,
   getAllConcerns,
   getConcernsByUser,
-  updateConcernStatus
+  updateConcernStatus,
+  approveConcern,
+  rejectConcern
 } = require("../controllers/concernController");
 const {authMiddleware} = require("../middlewares/authMiddleware")
 const router = express.Router();
@@ -13,5 +15,7 @@ router.post("/submit", authMiddleware, submitConcern);
 router.get("/all", getAllConcerns);
 router.get("/user",authMiddleware, getConcernsByUser);
 router.put("/update/:concernId", updateConcernStatus);
+router.patch("/approve/:id",approveConcern);
+router.patch("/reject/:id", rejectConcern);
 
 module.exports = router;

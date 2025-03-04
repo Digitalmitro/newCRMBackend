@@ -208,7 +208,7 @@ exports.verifyAdminOtp = async (req, res) => {
 // 🔹 1. Get All Users
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password"); // Exclude password
+    const users = await User.find().select("-password").sort({createAt:-1}); // Exclude password
 
     // Get user IDs
     const userIds = users.map(user => user._id);

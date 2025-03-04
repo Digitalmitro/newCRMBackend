@@ -8,7 +8,11 @@ const concernSchema = new mongoose.Schema({
     ActualPunchOut: { type: String },
     message: { type: String },
     currenDate: { type: String },
-    status: { type: String },
+    status: {
+        type: String,
+        enum: ["Pending", "Approved", "Rejected"], 
+        default: "Pending",
+      },
     concernType: { type: String },
     user_id: {type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true},
 }, {timestamps: true});
