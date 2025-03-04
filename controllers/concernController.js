@@ -88,7 +88,7 @@ const updateConcernStatus = async (req, res) => {
 const approveConcern = async (req, res) => {
   try {
     const concern = await ConcernModel.findByIdAndUpdate(
-      req.params.id,
+      {user_id:req.params.id},
       { status: "Approved" },
       { new: true }
     );
@@ -107,7 +107,7 @@ const approveConcern = async (req, res) => {
 const rejectConcern = async (req, res) => {
   try {
     const concern = await ConcernModel.findByIdAndUpdate(
-      req.params.id,
+      {user_id:req.params.id},
       { status: "Rejected" },
       { new: true }
     );
