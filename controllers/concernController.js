@@ -87,14 +87,16 @@ const updateConcernStatus = async (req, res) => {
 
 const approveConcern = async (req, res) => {
   try {
+    const { user_id, concern_id } = req.params;
+
     const concern = await ConcernModel.findOneAndUpdate(
-      { user_id: req.params.id }, // Find concern by user_id
+      { _id: concern_id, user_id: user_id }, // Ensure both match
       { status: "Approved" },
       { new: true }
     );
 
     if (!concern) {
-      return res.status(404).json({ message: "Concern not found for this user" });
+      return res.status(404).json({ message: "Concern not found or does not belong to this user" });
     }
 
     res.status(200).json({ message: "Concern approved successfully", concern });
@@ -103,17 +105,19 @@ const approveConcern = async (req, res) => {
   }
 };
 
-// Reject Concern by user_id
+// Reject Concern only if both user_id and concern_id match
 const rejectConcern = async (req, res) => {
   try {
+    const { user_id, concern_id } = req.params;
+
     const concern = await ConcernModel.findOneAndUpdate(
-      { user_id: req.params.id }, // Find concern by user_id
+      { _id: concern_id, user_id: user_id }, // Ensure both match
       { status: "Rejected" },
       { new: true }
     );
 
     if (!concern) {
-      return res.status(404).json({ message: "Concern not found for this user" });
+      return res.status(404).json({ message: "Concern not found or does not belong to this user" });
     }
 
     res.status(200).json({ message: "Concern rejected successfully", concern });
