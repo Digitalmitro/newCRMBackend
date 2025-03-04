@@ -85,9 +85,48 @@ const updateConcernStatus = async (req, res) => {
   }
 };
 
+const approveConcern = async (req, res) => {
+  try {
+    const concern = await ConcernModel.findByIdAndUpdate(
+      req.params.id,
+      { status: "Approved" },
+      { new: true }
+    );
+
+    if (!concern) {
+      return res.status(404).json({ message: "Concern not found" });
+    }
+
+    res.status(200).json({ message: "Concern approved successfully", concern });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
+// Reject Concern
+const rejectConcern = async (req, res) => {
+  try {
+    const concern = await ConcernModel.findByIdAndUpdate(
+      req.params.id,
+      { status: "Rejected" },
+      { new: true }
+    );
+
+    if (!concern) {
+      return res.status(404).json({ message: "Concern not found" });
+    }
+
+    res.status(200).json({ message: "Concern rejected successfully", concern });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
 module.exports = {
   submitConcern,
   getAllConcerns,
   getConcernsByUser,
-  updateConcernStatus
+  updateConcernStatus,
+  approveConcern,
+  rejectConcern
 };

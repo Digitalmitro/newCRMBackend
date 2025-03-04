@@ -5,6 +5,7 @@ const http = require('http');
 const { initSocket } = require('./utils/socket');
 const connectDB = require('./config/db');
 const {startCronJobs} = require('./utils/autoUpdateAttandance')
+const {startScheduler} = require("./utils/callbackScheduler");
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const authRoutes = require("./routes/authRoutes");
 const callbackRoutes = require("./routes/callbackRoutes");
@@ -16,14 +17,17 @@ const concernRoutes = require("./routes/concernRoutes");
 const channelRoutes = require("./routes/channelRoutes");
 const channelChatsRoutes = require("./routes/channelChatsRoutes");
 const notesRoutes = require("./routes/notepadRoutes")
-
+const fileUploadRoutes = require("./routes/fileUpload");
 
 dotenv.config();
 connectDB(); // Connect to MongoDB
-// startCronJobs()
+
 const app = express();
 const server = http.createServer(app);
 initSocket(server);
+
+// startCronJobs()
+startScheduler(0,20)
 app.use(express.json());
 app.use(
   cors({
@@ -43,7 +47,8 @@ app.use("/message", messageRoutes);
 app.use("/concern", concernRoutes);
 app.use("/api", channelRoutes);
 app.use("/channels", channelChatsRoutes);
-app.use("/notepad",notesRoutes);
+app.use("/notepad",notesRoutes)
+app.use("/files", fileUploadRoutes);
 
 // ✅ Basic API health check
 app.get('/', (req, res) => {
