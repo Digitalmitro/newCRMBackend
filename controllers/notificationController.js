@@ -5,7 +5,7 @@ const { getIo, onlineUsers } = require("../utils/socket");
 const sendNotification = async (req, res) => {
   try {
     let { userId, title, description } = req.body;
-
+    console.log({ userId, title, description })
     // If userId is 'ALL', broadcast to all users
     if (userId === "ALL") {
       userId = null;

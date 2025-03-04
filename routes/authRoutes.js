@@ -1,12 +1,16 @@
 const express = require("express");
-const { signup, login, createUserByAdmin, getUserName, 
-    adminLogin,
-     adminSignup, 
-    verifyAdminOtp,
-     getAllUsers,
-    getUserById,
-    updateUser,
-    deleteUser
+const {
+  signup,
+  login,
+  createUserByAdmin,
+  getUserName,
+  adminLogin,
+  adminSignup,
+  verifyAdminOtp,
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
 } = require("../controllers/authController");
 const { authMiddleware } = require("../middlewares/authMiddleware");
 

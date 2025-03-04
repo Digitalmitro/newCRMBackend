@@ -335,12 +335,14 @@ exports.getAttendanceList = async (req, res) => {
 // Get attendance list with filters (month, year, date)
 exports.getAttendanceListforadmin = async (req, res) => {
   const { month, year, date } = req.query;
+  console.log(month)
+  console.log(year)
   const userId = req.params.id;
 
   try {
     let query = { user_id: userId };
 
-    if (month && year) {
+    if (month ) {
       const startOfMonth = moment.tz({ year, month: month - 1 }, "Asia/Kolkata").startOf("month").toDate();
       const endOfMonth = moment.tz({ year, month: month - 1 }, "Asia/Kolkata").endOf("month").toDate();
       query.currentDate = { $gte: startOfMonth, $lte: endOfMonth };
