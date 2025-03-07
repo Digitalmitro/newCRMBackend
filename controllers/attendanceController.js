@@ -11,14 +11,14 @@ const moments = require("moment-timezone");
 const calculateWorkingTime = (punchIn, punchOut) => {
   const start = moment(punchIn, "HH:mm");
   const end = moment(punchOut, "HH:mm");
-  return end.diff(start, 'minutes'); 
+  return end.diff(start, "minutes");
 };
 
 // Punch-In API
 exports.punchIn = async (req, res) => {
-  const { userId } = req.user; 
+  const { userId } = req.user;
   const { clientIp } = req.body;
-  
+
   if (!clientIp || !userId) {
     return res.status(400).json({ message: "Missing field" });
   }
@@ -28,11 +28,14 @@ exports.punchIn = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-  
-    const today = moment().format("YYYY-MM-DD");
-    const punchInTime = moment();
 
-    let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
+    const today = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
+    const punchInTime = moment().tz("Asia/Kolkata");
+
+    let attendance = await Attendance.findOne({
+      user_id: userId,
+      currentDate: today,
+    });
 
     if (attendance && attendance.isPunchedIn) {
       return res.status(400).json({ message: "User already punched in today" });
@@ -45,7 +48,9 @@ exports.punchIn = async (req, res) => {
         attendance.firstPunchIn = punchInTime.toDate();
       }
       await attendance.save();
-      return res.status(200).json({ message: "Re-Punch In successful", data: attendance });
+      return res
+        .status(200)
+        .json({ message: "Re-Punch In successful", data: attendance });
     }
 
     const punchInHour = punchInTime.hour();
@@ -53,14 +58,18 @@ exports.punchIn = async (req, res) => {
     const shiftType = user?.type;
 
     let status = "On Time";
-    if ((shiftType === "Day" && (punchInHour > 10 || (punchInHour === 10 && punchInMinute > 40))) ||
-        (shiftType === "Night" && (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 10)))) {
+    if (
+      (shiftType === "Day" &&
+        (punchInHour > 10 || (punchInHour === 10 && punchInMinute > 40))) ||
+      (shiftType === "Night" &&
+        (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 10)))
+    ) {
       status = "Late";
     }
 
     attendance = new Attendance({
       currentDate: today,
-      firstPunchIn:punchInTime.toDate(),
+      firstPunchIn: punchInTime.toDate(),
       punchIn: punchInTime.toDate(),
       shiftType: shiftType,
       user_id: userId,
@@ -72,16 +81,17 @@ exports.punchIn = async (req, res) => {
 
     await attendance.save();
     res.status(201).json({ message: "Punch In successful", data: attendance });
-
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error during punch in", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error during punch in", error: error.message });
   }
 };
 
 // Punch-Out API
 exports.punchOut = async (req, res) => {
-  const { userId } = req.user; 
+  const { userId } = req.user;
 
   try {
     const user = await User.findById(userId);
@@ -89,18 +99,21 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const today = moment().format("YYYY-MM-DD");
-    const attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
+    const today = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
+    const attendance = await Attendance.findOne({
+      user_id: userId,
+      currentDate: today,
+    });
 
     if (!attendance || !attendance.isPunchedIn) {
       return res.status(400).json({ message: "User hasn't punched in today" });
     }
 
-    const punchOutTime = moment();
-    const punchInTime = moment(attendance.punchIn);
-    const sessionWorkTime = punchOutTime.diff(punchInTime, "minutes"); 
+    const punchOutTime = moment().tz("Asia/Kolkata");
+    const punchInTime = moment(attendance.punchIn).tz("Asia/Kolkata");
+    const sessionWorkTime = punchOutTime.diff(punchInTime, "minutes");
     attendance.punchOut = punchOutTime.toDate();
-    attendance.workingTime += sessionWorkTime; 
+    attendance.workingTime += sessionWorkTime;
     attendance.isPunchedIn = false;
 
     // let workStatus = "Absent";
@@ -115,14 +128,15 @@ exports.punchOut = async (req, res) => {
     } else if (attendance.workingTime >= 420) {
       workStatus = "Full Day";
     }
-    
+
     attendance.workStatus = workStatus;
     await attendance.save();
     res.status(200).json({ message: "Punch Out successful", data: attendance });
-
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error during punch out", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error during punch out", error: error.message });
   }
 };
 
@@ -140,26 +154,38 @@ exports.updateLeaveStatus = async (req, res) => {
 
     // Check if attendance record exists
     const today = moment().format("YYYY-MM-DD");
-    const attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
+    const attendance = await Attendance.findOne({
+      user_id: userId,
+      currentDate: today,
+    });
     if (!attendance) {
-      return res.status(404).json({ message: "Attendance not found for today" });
+      return res
+        .status(404)
+        .json({ message: "Attendance not found for today" });
     }
 
     // Update leave status if it's pending
-    if (attendance.leaveStatus === 'Pending') {
+    if (attendance.leaveStatus === "Pending") {
       attendance.leaveApproved = leaveApproved;
-      attendance.leaveStatus = leaveApproved ? 'Approved' : 'Rejected';
-      attendance.status = leaveApproved ? 'Leave' : 'Absent';
-      attendance.workStatus = leaveApproved ? 'Leave' : 'Absent';
+      attendance.leaveStatus = leaveApproved ? "Approved" : "Rejected";
+      attendance.status = leaveApproved ? "Leave" : "Absent";
+      attendance.workStatus = leaveApproved ? "Leave" : "Absent";
       await attendance.save();
 
-      res.status(200).json({ message: `Leave ${leaveApproved ? 'Approved' : 'Rejected'}`, data: attendance });
+      res
+        .status(200)
+        .json({
+          message: `Leave ${leaveApproved ? "Approved" : "Rejected"}`,
+          data: attendance,
+        });
     } else {
       res.status(400).json({ message: "Leave has already been processed" });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error updating leave status", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error updating leave status", error: error.message });
   }
 };
 
@@ -170,11 +196,15 @@ exports.handlePunch = async (req, res) => {
 
   try {
     const today = date || moment().format("YYYY-MM-DD");
-    let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
+    let attendance = await Attendance.findOne({
+      user_id: userId,
+      currentDate: today,
+    });
 
     if (!attendance) {
       // If no attendance record, create Punch-In
-      const shiftType = punchIn >= "10:30" && punchIn <= "19:30" ? "Day" : "Night";
+      const shiftType =
+        punchIn >= "10:30" && punchIn <= "19:30" ? "Day" : "Night";
 
       attendance = new Attendance({
         user_id: userId,
@@ -186,7 +216,9 @@ exports.handlePunch = async (req, res) => {
       });
 
       await attendance.save();
-      return res.status(201).json({ message: "Punch-In recorded", data: attendance });
+      return res
+        .status(201)
+        .json({ message: "Punch-In recorded", data: attendance });
     }
 
     if (attendance.isPunchedIn) {
@@ -199,34 +231,48 @@ exports.handlePunch = async (req, res) => {
         if (punchOut) finalPunchOut = punchOut;
       }
 
-      const workingTime = calculateWorkingTime(attendance.punchIn, finalPunchOut);
+      const workingTime = calculateWorkingTime(
+        attendance.punchIn,
+        finalPunchOut
+      );
       attendance.punchOut = finalPunchOut;
       attendance.workingTime = workingTime;
       attendance.isPunchedIn = false;
 
       await attendance.save();
-      return res.status(200).json({ message: "Punch-Out recorded", data: attendance });
+      return res
+        .status(200)
+        .json({ message: "Punch-Out recorded", data: attendance });
     }
 
     return res.status(400).json({ message: "Already punched out for today" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error processing attendance", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error processing attendance", error: error.message });
   }
 };
 
 //This is for admin
 exports.getAllAttendance = async (req, res) => {
   try {
-    const allAttendance = await Attendance.find().populate("user_id", "name email");
-    res.status(200).json({ message: "All attendance records", data: allAttendance });
+    const allAttendance = await Attendance.find().populate(
+      "user_id",
+      "name email"
+    );
+    res
+      .status(200)
+      .json({ message: "All attendance records", data: allAttendance });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching attendance", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching attendance", error: error.message });
   }
 };
 
 exports.getUserAttendance = async (req, res) => {
-  const { userId } = req.user; 
+  const { userId } = req.user;
   const { range } = req.query;
 
   let startDate, endDate;
@@ -238,8 +284,14 @@ exports.getUserAttendance = async (req, res) => {
     startDate = moment().startOf("month").format("YYYY-MM-DD");
     endDate = moment().endOf("month").format("YYYY-MM-DD");
   } else if (range === "last_month") {
-    startDate = moment().subtract(1, "months").startOf("month").format("YYYY-MM-DD");
-    endDate = moment().subtract(1, "months").endOf("month").format("YYYY-MM-DD");
+    startDate = moment()
+      .subtract(1, "months")
+      .startOf("month")
+      .format("YYYY-MM-DD");
+    endDate = moment()
+      .subtract(1, "months")
+      .endOf("month")
+      .format("YYYY-MM-DD");
   } else if (range === "year") {
     startDate = moment().startOf("year").format("YYYY-MM-DD");
     endDate = moment().endOf("year").format("YYYY-MM-DD");
@@ -271,7 +323,7 @@ exports.getAttendanceList = async (req, res) => {
   const { month, year, date } = req.query;
 
   try {
-    let query = { user_id: userId};
+    let query = { user_id: userId };
 
     // Filter by month and year
     if (month && year) {
@@ -335,26 +387,37 @@ exports.getAttendanceList = async (req, res) => {
 // Get attendance list with filters (month, year, date)
 exports.getAttendanceListforadmin = async (req, res) => {
   const { month, year, date } = req.query;
-  console.log(month)
-  console.log(year)
+  console.log(month);
+  console.log(year);
   const userId = req.params.id;
 
   try {
     let query = { user_id: userId };
 
-    if (month ) {
-      const startOfMonth = moment.tz({ year, month: month - 1 }, "Asia/Kolkata").startOf("month").toDate();
-      const endOfMonth = moment.tz({ year, month: month - 1 }, "Asia/Kolkata").endOf("month").toDate();
+    if (month) {
+      const startOfMonth = moment
+        .tz({ year, month: month - 1 }, "Asia/Kolkata")
+        .startOf("month")
+        .toDate();
+      const endOfMonth = moment
+        .tz({ year, month: month - 1 }, "Asia/Kolkata")
+        .endOf("month")
+        .toDate();
       query.currentDate = { $gte: startOfMonth, $lte: endOfMonth };
     }
 
     if (date) {
-      const specificDate = moment.tz(date, "Asia/Kolkata").startOf("day").toDate();
+      const specificDate = moment
+        .tz(date, "Asia/Kolkata")
+        .startOf("day")
+        .toDate();
       const endOfDay = moment.tz(date, "Asia/Kolkata").endOf("day").toDate();
       query.currentDate = { $gte: specificDate, $lte: endOfDay };
     }
 
-    const data = await Attendance.find(query).select("-__v").sort({createdAt:-1});
+    const data = await Attendance.find(query)
+      .select("-__v")
+      .sort({ createdAt: -1 });
     if (!data.length) return res.status(404).json({ message: "No Data Found" });
 
     res.status(200).json({ message: "Data Collected Successfully", data });
@@ -377,17 +440,27 @@ exports.getAttendanceStatusforadmin = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     if (!attendanceRecord)
-      return res.status(200).json({ isPunchedIn: false, message: "User has not punched in today" });
+      return res
+        .status(200)
+        .json({ isPunchedIn: false, message: "User has not punched in today" });
 
     const punches = attendanceRecord.punches;
     if (!punches.length)
-      return res.status(200).json({ isPunchedIn: false, message: "No punch-in records found today" });
+      return res
+        .status(200)
+        .json({
+          isPunchedIn: false,
+          message: "No punch-in records found today",
+        });
 
     const lastPunch = punches[punches.length - 1];
 
     res.status(200).json({
       isPunchedIn: lastPunch.punchIn && !lastPunch.punchOut,
-      message: lastPunch.punchIn && !lastPunch.punchOut ? "User is currently punched in" : "User has punched out",
+      message:
+        lastPunch.punchIn && !lastPunch.punchOut
+          ? "User is currently punched in"
+          : "User has punched out",
       punchInTime: lastPunch.punchIn,
       punchOutTime: lastPunch.punchOut || null,
     });
@@ -408,7 +481,6 @@ exports.getAllAttendanceforadmin = async (req, res) => {
   }
 };
 
-
 // Admin: Get today's attendance
 exports.getTodaysAttendanceforadmin = async (req, res) => {
   try {
@@ -417,23 +489,38 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
 
     const todaysAttendance = await Attendance.find({
       currentDate: { $gte: today, $lte: tomorrow },
-    }).populate('user_id').select("-__v");
+    })
+      .populate("user_id")
+      .select("-__v");
 
     if (!todaysAttendance.length)
-      return res.status(404).json({ message: "No attendance records found for today" });
+      return res
+        .status(404)
+        .json({ message: "No attendance records found for today" });
 
-    res.status(200).json({ message: "Today's attendance data collected successfully", data: todaysAttendance });
+    res
+      .status(200)
+      .json({
+        message: "Today's attendance data collected successfully",
+        data: todaysAttendance,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-};  
+};
 
 exports.getEmployeeDashboard = async (req, res) => {
   const userId = req.params.id;
 
   try {
-    const [attendanceCount, callbackCount, saleCount, transferCount, projectsCount] = await Promise.all([
+    const [
+      attendanceCount,
+      callbackCount,
+      saleCount,
+      transferCount,
+      projectsCount,
+    ] = await Promise.all([
       Attendance.countDocuments({ user_id: userId }),
       CallBack.countDocuments({ user_id: userId }),
       Sale.countDocuments({ user_id: userId }),
@@ -453,13 +540,15 @@ exports.getEmployeeDashboard = async (req, res) => {
   }
 };
 
-
 const updateTime = async () => {
   try {
     const currentDate = new Date("2025-02-19T00:00:00.000+00:00");
 
     // Fetch attendance records matching the date and shift type
-    const attendances = await Attendance.find({ currentDate, shiftType: "Day" });
+    const attendances = await Attendance.find({
+      currentDate,
+      shiftType: "Day",
+    });
 
     for (let record of attendances) {
       let punchInTime = new Date("2025-02-19T10:30:00.000+00:00"); // Default punch-in time
@@ -496,9 +585,8 @@ const updateTime = async () => {
       //     },
       //   }
       // );
-      
     }
-    console.log(attendances)
+    console.log(attendances);
 
     console.log("✅ Attendance records updated successfully.");
   } catch (error) {

@@ -8,6 +8,7 @@ const attendanceSchema = new mongoose.Schema({
   firstPunchIn:{ type: Date},
   punchIn: { type: Date },
   punchOut: { type: Date },
+  
   workingTime: { type: Number, default: 0 }, // Time in minutes
   shiftType: {
     type: String,

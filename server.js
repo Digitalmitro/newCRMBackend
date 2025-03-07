@@ -18,7 +18,7 @@ const channelRoutes = require("./routes/channelRoutes");
 const channelChatsRoutes = require("./routes/channelChatsRoutes");
 const notesRoutes = require("./routes/notepadRoutes")
 const fileUploadRoutes = require("./routes/fileUpload");
-
+const clientRoutes=require("./routes/clientRoutes")
 dotenv.config();
 connectDB(); // Connect to MongoDB
 
@@ -31,7 +31,7 @@ startScheduler(0,20)
 app.use(express.json());
 app.use(
   cors({
-    origin:  [process.env.Client_Url, process.env.Admin_Url],
+    origin:  [process.env.Client_Url, process.env.Admin_Url,process.env.Guest_Url],
     credentials: true,
   })
 );
@@ -49,7 +49,7 @@ app.use("/api", channelRoutes);
 app.use("/channels", channelChatsRoutes);
 app.use("/notepad",notesRoutes)
 app.use("/files", fileUploadRoutes);
-
+app.use("/client",clientRoutes)
 // ✅ Basic API health check
 app.get('/', (req, res) => {
   res.status(200).json({ message: "🚀 Welcome to CRM Server" });
