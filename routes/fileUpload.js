@@ -7,7 +7,7 @@ const router = express.Router();
 // ✅ File Upload API
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const { sender, receiver } = req.body;
+    // const { sender, receiver } = req.body;
     const file = req.file;
 
     if (!file) return res.status(400).json({ success: false, message: "No file uploaded" });

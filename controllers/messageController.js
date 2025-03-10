@@ -1,5 +1,8 @@
 const DirectMessage = require("../models/DirectMessage");
-const User = require("../models/User")
+const User = require("../models/User");
+const Admin = require("../models/Admin");
+const Client = require("../models/Client");
+
 const { getIo, onlineUsers } = require("../utils/socket");
 
 // Send a new message
@@ -102,10 +105,19 @@ const getRecentChatUsers = async (req, res) => {
     // Step 2: Get all users who have chatted with the current user
     const userIds = lastMessages.map(msg => msg._id);
     const users = await User.find({ _id: { $in: userIds } }, "name _id");
+    const adminUsers = await Admin.find({ _id: { $in: userIds } }, "name _id");
+    const clientUsers = await Client.find({ _id: { $in: userIds } }, "name _id");
+    const allUsers = [...users, ...adminUsers, ...clientUsers];
 
+
+        // Get the current user (who is making the request)
+        let currentUser = await User.findById({_id:userId}, "name _id");
+        if (!currentUser) currentUser = await Admin.findById({_id:userId}, "name _id");
+        if (!currentUser) currentUser = await Client.findById({_id:userId}, "name _id");
+       console.log(currentUser)
     // Step 3: Get unseen message count for each user
     const usersWithDetails = await Promise.all(
-      users.map(async (user) => {
+      allUsers.map(async (user) => {
         const unseenCount = await DirectMessage.countDocuments({
           sender: user._id,
           receiver: userId,
@@ -127,36 +139,91 @@ const getRecentChatUsers = async (req, res) => {
       return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
     });
 
-    res.status(200).json({ success: true, chatUsers: usersWithDetails });
+    res.status(200).json({ success: true, user: currentUser,chatUsers: usersWithDetails });
   } catch (error) {
     console.error("Error fetching recent chat users:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
-const getAllUser = async (req,res) =>{
+// const getAllUser = async (req,res) =>{
+//   try {
+//     const users = await User.find({}, "_id name"); // Fetch all users (ID & Name only)
+//     const loggedInUserId = req.user.userId; // Get logged-in user ID
+
+//     // Fetch unread messages and last message time for each user
+//     const usersWithChatData = await Promise.all(
+//       users.map(async (user) => {
+//         if (user._id.toString() === loggedInUserId) return null; // Exclude current user
+
+//         const lastMessage = await DirectMessage.findOne({
+//           $or: [
+//             { sender: loggedInUserId, receiver: user._id },
+//             { sender: user._id, receiver: loggedInUserId }
+//           ]
+//         }).sort({ createdAt: -1 }); // Get latest message
+
+//         const unreadCount = await DirectMessage.countDocuments({
+//           sender: user._id,
+//           receiver: loggedInUserId,
+//           seen: false,
+//         });
+       
+//         return {
+//           id: user._id,
+//           name: user.name,
+//           unreadMessages: unreadCount,
+//           lastMessageTime: lastMessage ? lastMessage.createdAt : null,
+//         };
+//       })
+//     );
+
+//     // Filter out null values (current user) and sort by:
+//     // 1️⃣ Unread messages first (Descending)
+//     // 2️⃣ Recent chat activity (Newest first)
+//     const sortedUsers = usersWithChatData
+//       .filter(Boolean)
+//       .sort((a, b) => {
+//         if (a.unreadMessages !== b.unreadMessages) {
+//           return b.unreadMessages - a.unreadMessages; // Unread messages first
+//         }
+//         return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0); // Recent chats next
+//       });
+
+//     res.json(sortedUsers);
+//   } catch (error) {
+//     console.error("Error fetching users:", error);
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// }
+const getAllUser = async (req, res) => {
   try {
-    const users = await User.find({}, "_id name"); // Fetch all users (ID & Name only)
     const loggedInUserId = req.user.userId; // Get logged-in user ID
+
+    // Fetch users from all collections (excluding the logged-in user)
+    const employeeUsers = await User.find({ _id: { $ne: loggedInUserId } }, "_id name");
+    const adminUsers = await Admin.find({ _id: { $ne: loggedInUserId } }, "_id name");
+    const clientUsers = await Client.find({ _id: { $ne: loggedInUserId } }, "_id name");
+
+    // Combine users into one array
+    const allUsers = [...employeeUsers, ...adminUsers, ...clientUsers];
 
     // Fetch unread messages and last message time for each user
     const usersWithChatData = await Promise.all(
-      users.map(async (user) => {
-        if (user._id.toString() === loggedInUserId) return null; // Exclude current user
-
+      allUsers.map(async (user) => {
         const lastMessage = await DirectMessage.findOne({
           $or: [
             { sender: loggedInUserId, receiver: user._id },
-            { sender: user._id, receiver: loggedInUserId }
-          ]
-        }).sort({ createdAt: -1 }); // Get latest message
+            { sender: user._id, receiver: loggedInUserId },
+          ],
+        }).sort({ createdAt: -1 }); // Get the latest message
 
         const unreadCount = await DirectMessage.countDocuments({
           sender: user._id,
           receiver: loggedInUserId,
           seen: false,
         });
-       
+
         return {
           id: user._id,
           name: user.name,
@@ -166,24 +233,22 @@ const getAllUser = async (req,res) =>{
       })
     );
 
-    // Filter out null values (current user) and sort by:
+    // Sort by:
     // 1️⃣ Unread messages first (Descending)
     // 2️⃣ Recent chat activity (Newest first)
-    const sortedUsers = usersWithChatData
-      .filter(Boolean)
-      .sort((a, b) => {
-        if (a.unreadMessages !== b.unreadMessages) {
-          return b.unreadMessages - a.unreadMessages; // Unread messages first
-        }
-        return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0); // Recent chats next
-      });
+    const sortedUsers = usersWithChatData.sort((a, b) => {
+      if (a.unreadMessages !== b.unreadMessages) {
+        return b.unreadMessages - a.unreadMessages; // Unread messages first
+      }
+      return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0); // Recent chats next
+    });
 
-    res.json(sortedUsers);
+    res.json({ success: true, users: sortedUsers });
   } catch (error) {
     console.error("Error fetching users:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
-}
+};
 
 const readMessage = async (req,res) =>{
   try {

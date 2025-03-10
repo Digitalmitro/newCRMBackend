@@ -36,7 +36,7 @@ registeradminSchema.methods.generateAuthToken = async function () {
     // const expirationTime = Math.floor(Date.now() / 1000) + (60 * 60);
  
     let token = jwt.sign(
-      { _id: this._id, expiresIn: '30d' },
+      { name:this.name,userId: this._id, expiresIn: '30d' },
       process.env.JWT_SECRET
     );
     return token;
@@ -46,4 +46,4 @@ registeradminSchema.methods.generateAuthToken = async function () {
 };
 const RegisteradminModal = mongoose.model("Admin", registeradminSchema);
 
-module.exports = { RegisteradminModal };
+module.exports =  RegisteradminModal ;

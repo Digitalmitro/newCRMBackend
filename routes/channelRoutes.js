@@ -5,7 +5,7 @@ const {authMiddleware} = require("../middlewares/authMiddleware")
 
 // API Endpoints
 router.post("/create",authMiddleware, channelController.createChannel);
-router.get("/all", channelController.getAllChannels);
+router.get("/all", authMiddleware,channelController.getAllChannels);
 router.get("/:id", channelController.getChannelById);
 router.delete("/:id", channelController.deleteChannel);
 

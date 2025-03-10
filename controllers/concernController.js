@@ -1,5 +1,5 @@
 const { ConcernModel } = require("../models/concern");
-
+const Attendance = require("../models/Attendance")
 // 📌 Submit a Concern (Book Leave, Forgot Clock Out, Employee Concern)
 const submitConcern = async (req, res) => {
   try {
@@ -89,8 +89,9 @@ const approveConcern = async (req, res) => {
   try {
     const { user_id, concern_id } = req.params;
 
+    // Find concern by user_id and concern_id
     const concern = await ConcernModel.findOneAndUpdate(
-      { _id: concern_id, user_id: user_id }, // Ensure both match
+      { _id: concern_id, user_id: user_id },
       { status: "Approved" },
       { new: true }
     );
@@ -99,8 +100,85 @@ const approveConcern = async (req, res) => {
       return res.status(404).json({ message: "Concern not found or does not belong to this user" });
     }
 
-    res.status(200).json({ message: "Concern approved successfully", concern });
+    const { ConcernDate, concernType, ActualPunchIn, ActualPunchOut } = concern;
+    
+    if (!ConcernDate) {
+      return res.status(400).json({ message: "Concern date is missing" });
+    }
+
+    // Parse ConcernDate
+    const concernDate = moment(ConcernDate, "YYYY-MM-DD").startOf("day");
+
+    // Find existing attendance
+    let attendance = await Attendance.findOne({
+      user_id: user_id,
+      currentDate: concernDate.toDate(),
+    });
+
+    // Determine shift type based on time
+    let shiftType = "Day";
+    if (ActualPunchIn) {
+      const punchInHour = moment(ActualPunchIn, "HH:mm").hour();
+      shiftType = punchInHour >= 8 && punchInHour < 17 ? "Day" : "Night";
+    }
+
+    // Default Punch-in/out times (Modify if concern provides ActualPunchIn/ActualPunchOut)
+    const punchInTime = moment(ActualPunchIn || "10:30", "HH:mm").toDate();
+    const punchOutTime = moment(ActualPunchOut || "19:30", "HH:mm").toDate();
+
+    // Calculate working time
+    const workingTime = moment(punchOutTime).diff(moment(punchInTime), "minutes");
+
+    // Determine work status based on working time
+    let workStatus = "Absent";
+    if (workingTime >= 300 && workingTime < 420) {
+      workStatus = "Half Day";
+    } else if (workingTime >= 420) {
+      workStatus = "Full Day";
+    }
+
+    // Set Status based on punch-in time
+    let status = "On Time";
+    if (
+      (shiftType === "Day" && moment(punchInTime).hour() > 10) ||
+      (shiftType === "Night" && moment(punchInTime).hour() > 20)
+    ) {
+      status = "Late";
+    }
+
+    // If attendance exists, update it
+    if (attendance) {
+      attendance.punchIn = punchInTime;
+      attendance.punchOut = punchOutTime;
+      attendance.workingTime = workingTime;
+      attendance.shiftType = shiftType;
+      attendance.status = status;
+      attendance.workStatus = workStatus;
+      attendance.ip = "System Generated";
+      attendance.isPunchedIn = false;
+    } else {
+      // Create new attendance record
+      attendance = new Attendance({
+        user_id: user_id,
+        currentDate: concernDate.toDate(),
+        firstPunchIn: punchInTime,
+        punchIn: punchInTime,
+        punchOut: punchOutTime,
+        workingTime: workingTime,
+        shiftType: shiftType,
+        status: status,
+        workStatus: workStatus,
+        ip: "System Generated",
+        isPunchedIn: false,
+      });
+    }
+
+    await attendance.save();
+
+    res.status(200).json({ message: "Concern approved and attendance updated", concern, attendance });
+
   } catch (error) {
+    console.error("Error approving concern:", error);
     res.status(500).json({ message: "Server error", error });
   }
 };
