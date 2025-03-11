@@ -1,4 +1,4 @@
-const cron = require("node-cron"); 
+const schedule = require("node-schedule");
 const moment = require("moment");
 const Attendance = require("../models/Attendance");
 const User = require("../models/User");
@@ -51,10 +51,10 @@ const startCronJobs = async () => {
   console.log("🚀 Starting Cron Jobs...");
 
   // ✅ Day Shift: 9 AM
-  cron.schedule("0 9 * * *", () => autoUpdateAttendance("Day"));
+  schedule.scheduleJob("0 9 * * *", () => autoUpdateAttendance("Day"));
 
   // ✅ Night Shift: 7 PM
-  cron.schedule("0 19 * * *", () => autoUpdateAttendance("Night"));
+  schedule.scheduleJob("0 19 * * *", () => autoUpdateAttendance("Night"));
   // await autoUpdateAttendance("Day");
 
   console.log("✅ Cron Jobs Scheduled!");
