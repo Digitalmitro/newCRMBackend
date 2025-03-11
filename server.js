@@ -28,7 +28,7 @@ initSocket(server);
 
 // startCronJobs()
 startScheduler(0,20)
-startScheduler(42,10)
+startScheduler(10, 15);
 app.use(express.json());
 app.use(
   cors({
