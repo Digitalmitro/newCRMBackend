@@ -1,4 +1,6 @@
 const ChannelMessage = require("../models/ChannelMessage");
+const Channel = require("../models/Channels")
+const User = require("../models/User")
 const { getIo } = require("../utils/socket");
 
 // ✅ Send a new message in a channel
@@ -13,12 +15,19 @@ const sendChannelMessage = async (req, res) => {
     // ✅ Save message to database
     const newMessage = new ChannelMessage({ sender, channelId, message });
     await newMessage.save();
-
+    // ✅ Fetch Channel Name
+    const channel = await Channel.findById(channelId);
+    const channelName = channel ? channel.name : "Unknown Channel";
     const io = getIo(); // Get the initialized Socket.io instance
 
     // ✅ Emit the message to all users in the channel
     io.to(channelId).emit("new-channel-message", newMessage);
-    console.log(`✅ Message sent to channel: ${channelId}`);
+    // console.log(`✅ Message sent to channel: ${channelId}`);
+    io.to(channelId).emit("receive-notification", {
+      title: "New Channel Message",
+      description: `You have a new message in channel ${channelName}`,
+      timestamp: new Date(),
+    });
 
     res.status(200).json({ success: true, message: "Message sent successfully.", data: newMessage });
   } catch (error) {
