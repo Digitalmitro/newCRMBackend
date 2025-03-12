@@ -137,7 +137,7 @@ exports.inviteByEmail = async (req, res) => {
     // Check if the channel exists
     const channel = await Channel.findById(channelId);
     if (!channel) return res.status(404).json({ message: "Channel not found" });
-    const client = await Client.findOne({ email });
+    const user = await User.findOne({ email });
     // Generate an invite link
     const invite = new ChannelInvite({ channel: channelId, invitedBy, email });
     await invite.save();
@@ -146,7 +146,7 @@ exports.inviteByEmail = async (req, res) => {
     const signupLink = `https://client.digitalmitro.info/signup`;
     // Prepare email content
     const subject = `You're invited to join ${channel.name}`;
-    const text = client
+    const text = user
       ? `Hello,
 
 You have been invited to join the channel "${channel.name}". 
