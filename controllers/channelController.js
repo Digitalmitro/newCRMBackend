@@ -179,7 +179,9 @@ exports.joinChannel = async (req, res) => {
     const user = await User.findOne({ email: invite.email });
     const client = await Client.findOne({ email: invite.email })
     // if (!user && !client) return res.status(400).json({ message: "User not found or don't have account" });
-
+    if (!client) {
+      return res.status(302).redirect("https://client.digitalmitro.info/signup");
+    }
     // Find the channel
     const channel = await Channel.findById({_id:invite.channel});
     if (!channel) return res.status(404).json({ message: "Channel not found" });
