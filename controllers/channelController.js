@@ -1,23 +1,23 @@
 const Channel = require("../models/Channels");
 const ChannelInvite = require("../models/ChannelInvite");
 const User = require("../models/User");
-const Admin =require("../models/Admin");
+const Admin = require("../models/Admin");
 const Client = require("../models/Client");
-
+const sendMail = require("../services/sendMail");
 // Create a new channel
 exports.createChannel = async (req, res) => {
   try {
     const { name, description, members } = req.body;
     const owner = req.user.userId;
-   console.log(owner)
+
     if (!name || !owner) {
       return res.status(400).json({ error: "Name and owner are required" });
     }
-    const uniqueMembers = Array.from(new Set([...members, owner])); 
+    const uniqueMembers = Array.from(new Set([...members, owner]));
     const newChannel = new Channel({
       name,
       description,
-      members:uniqueMembers,
+      members: uniqueMembers,
       owner,
       inviteLink: `https://yourapp.com/invite/${Math.random().toString(36).substr(2, 8)}`,
     });
@@ -132,22 +132,37 @@ exports.getInviteLink = async (req, res) => {
 exports.inviteByEmail = async (req, res) => {
   try {
     const { channelId, email, invitedBy } = req.body;
-    console.log({ channelId, email, invitedBy })
+    // console.log({ channelId, email, invitedBy });
 
+    // Check if the channel exists
     const channel = await Channel.findById(channelId);
     if (!channel) return res.status(404).json({ message: "Channel not found" });
 
+    // Generate an invite link
     const invite = new ChannelInvite({ channel: channelId, invitedBy, email });
     await invite.save();
 
-    // Send email (replace with actual email service)
-    // await sendEmailInvite(email, `/join/${invite.inviteLink}`);
+    const inviteLink = `https://api.digitalmitro.info/api/join/${invite._id}`;
 
-    res.json({ message: "Invite sent successfully" });
+    // Prepare email content
+    const subject = `You're invited to join ${channel.name}`;
+    const text = `Hello, 
 
+You have been invited to join the channel "${channel.name}". 
+Click the link below to accept the invitation:
+
+${inviteLink}
+
+Best regards,
+Your Team`;
+
+    // Send email
+    await sendMail(email, subject, text);
+
+    res.json({ message: "Invite sent successfully", inviteLink });
   } catch (err) {
-    res.status(500).json({ message: err.message });
-    console.error(err)
+    console.error(err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 };
 
@@ -155,19 +170,22 @@ exports.inviteByEmail = async (req, res) => {
 exports.joinChannel = async (req, res) => {
   try {
     const { inviteLink } = req.params;
-    const invite = await ChannelInvite.findOne({ inviteLink });
+    if (!inviteLink) return res.status(401).json({ message: " missing params" })
+    // Check if invite exists
+    const invite = await ChannelInvite.findById({ _id: inviteLink });
+    if (!invite) return res.status(404).json({ message: "Invalid or expired invite link" });
 
-    if (!invite) return res.status(404).json({ message: "Invalid invite link" });
-
-    // Find user by email
+    // Check if user exists with the invited email
     const user = await User.findOne({ email: invite.email });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    const client = await Client.findOne({ email: invite.email })
+    if (!user && !client) return res.status(400).json({ message: "User not found or don't have account" });
 
-    const channel = await Channel.findById(invite.channel);
+    // Find the channel
+    const channel = await Channel.findById({_id:invite.channel});
     if (!channel) return res.status(404).json({ message: "Channel not found" });
 
-    // Add user to channel if not already added
-    if (!channel.members.includes(user._id)) {
+    // Add user to channel if they are not already a member
+    if (!channel.members.some(member => member.toString() === user._id.toString())) {
       channel.members.push(user._id);
       await channel.save();
     }
@@ -175,9 +193,15 @@ exports.joinChannel = async (req, res) => {
     // Mark invite as accepted
     invite.status = "accepted";
     await invite.save();
+    const redirectUrl = client?.email === invite.email
+    ? "https://client.digitalmitro.info" 
+    : "https://digitalmitro.info";
 
-    res.json({ message: "Successfully joined the channel", channel });
+  // Redirect user to the appropriate URL
+  res.status(302).redirect(redirectUrl); 
+    // res.status(200).json({ message: "Successfully joined the channel", channel });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error in joinChannel:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 };
