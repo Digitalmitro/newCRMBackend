@@ -178,18 +178,20 @@ exports.joinChannel = async (req, res) => {
     // Check if user exists with the invited email
     const user = await User.findOne({ email: invite.email });
     const client = await Client.findOne({ email: invite.email })
-    if (!user && !client) return res.status(400).json({ message: "User not found or don't have account" });
+    // if (!user && !client) return res.status(400).json({ message: "User not found or don't have account" });
 
     // Find the channel
     const channel = await Channel.findById({_id:invite.channel});
     if (!channel) return res.status(404).json({ message: "Channel not found" });
 
-    // Add user to channel if they are not already a member
-    if (!channel.members.some(member => member.toString() === user._id.toString())) {
-      channel.members.push(user._id);
-      await channel.save();
-    }
+   // Determine the entity to add (user or client)
+   const memberId = user ? user?._id : client?._id;
 
+   // Add user/client to the channel if they are not already a member
+   if (!channel.members.some(member => member.toString() === memberId.toString())) {
+     channel.members.push(memberId);
+     await channel.save();
+   }
     // Mark invite as accepted
     invite.status = "accepted";
     await invite.save();
