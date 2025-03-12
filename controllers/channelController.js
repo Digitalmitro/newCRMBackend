@@ -137,16 +137,17 @@ exports.inviteByEmail = async (req, res) => {
     // Check if the channel exists
     const channel = await Channel.findById(channelId);
     if (!channel) return res.status(404).json({ message: "Channel not found" });
-
+    const client = await Client.findOne({ email });
     // Generate an invite link
     const invite = new ChannelInvite({ channel: channelId, invitedBy, email });
     await invite.save();
 
     const inviteLink = `https://api.digitalmitro.info/api/join/${invite._id}`;
-
+    const signupLink = `https://client.digitalmitro.info/signup`;
     // Prepare email content
     const subject = `You're invited to join ${channel.name}`;
-    const text = `Hello, 
+    const text = client
+      ? `Hello,
 
 You have been invited to join the channel "${channel.name}". 
 Click the link below to accept the invitation:
@@ -154,8 +155,21 @@ Click the link below to accept the invitation:
 ${inviteLink}
 
 Best regards,
-Your Team`;
+Digital Mitro Team`
+      : `Hello,
 
+You have been invited to join the channel "${channel.name}". However, it looks like you don't have an account yet.
+
+Please sign up first by clicking the link below:
+
+${signupLink}
+
+After signing up, return to this email and click the invitation link to join the channel:
+
+${inviteLink}
+
+Best regards,  
+Digital Mitro Team`;
     // Send email
     await sendMail(email, subject, text);
 
@@ -183,26 +197,26 @@ exports.joinChannel = async (req, res) => {
       return res.status(302).redirect("https://client.digitalmitro.info/signup");
     }
     // Find the channel
-    const channel = await Channel.findById({_id:invite.channel});
+    const channel = await Channel.findById({ _id: invite.channel });
     if (!channel) return res.status(404).json({ message: "Channel not found" });
 
-   // Determine the entity to add (user or client)
-   const memberId = user ? user?._id : client?._id;
+    // Determine the entity to add (user or client)
+    const memberId = user ? user?._id : client?._id;
 
-   // Add user/client to the channel if they are not already a member
-   if (!channel.members.some(member => member.toString() === memberId.toString())) {
-     channel.members.push(memberId);
-     await channel.save();
-   }
+    // Add user/client to the channel if they are not already a member
+    if (!channel.members.some(member => member.toString() === memberId.toString())) {
+      channel.members.push(memberId);
+      await channel.save();
+    }
     // Mark invite as accepted
     invite.status = "accepted";
     await invite.save();
     const redirectUrl = client?.email === invite.email
-    ? "https://client.digitalmitro.info" 
-    : "https://digitalmitro.info";
+      ? "https://client.digitalmitro.info"
+      : "https://digitalmitro.info";
 
-  // Redirect user to the appropriate URL
-  res.status(302).redirect(redirectUrl); 
+    // Redirect user to the appropriate URL
+    res.status(302).redirect(redirectUrl);
     // res.status(200).json({ message: "Successfully joined the channel", channel });
   } catch (err) {
     console.error("Error in joinChannel:", err);
