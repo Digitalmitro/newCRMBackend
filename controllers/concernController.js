@@ -1,11 +1,12 @@
 const { ConcernModel } = require("../models/concern");
 const Attendance = require("../models/Attendance");
-const moment = require('moment')
+const User = require("../models/User")
+const moment = require('moment-timezone')
 // 📌 Submit a Concern (Book Leave, Forgot Clock Out, Employee Concern)
 const submitConcern = async (req, res) => {
   try {
-    const {  concernType, message, ConcernDate, ActualPunchIn, ActualPunchOut, status } = req.body;
-    const user_id= req.user.userId
+    const { concernType, message, ConcernDate, ActualPunchIn, ActualPunchOut, status } = req.body;
+    const user_id = req.user.userId
 
     if (!user_id || !concernType || !message) {
       return res.status(400).json({ success: false, message: "Missing required fields" });
@@ -15,7 +16,7 @@ const submitConcern = async (req, res) => {
       user_id,
       concernType,
       message,
-      ConcernDate:ConcernDate,
+      ConcernDate: ConcernDate,
       ActualPunchIn,
       ActualPunchOut,
       status: status || "Pending",
@@ -45,7 +46,7 @@ const getAllConcerns = async (req, res) => {
 // 📌 Get Concerns by User ID
 const getConcernsByUser = async (req, res) => {
   try {
-    const user_id= req.user.userId
+    const user_id = req.user.userId
     const concerns = await ConcernModel.find({ user_id }).sort({ createdAt: -1 });
 
     if (!concerns.length) {
@@ -88,17 +89,10 @@ const updateConcernStatus = async (req, res) => {
 
 const approveConcern = async (req, res) => {
   try {
-
-    return res.status(200).json({message:" its working in progress"})
     const { user_id, concern_id } = req.params;
 
     // Find and update concern status
-    const concern = await ConcernModel.findOneAndUpdate(
-      { _id: concern_id, user_id: user_id },
-      { status: "Approved" },
-      { new: true }
-    );
-
+    const concern = await ConcernModel.findOne({ _id: concern_id, user_id: user_id });
     if (!concern) {
       return res.status(404).json({ message: "Concern not found or does not belong to this user" });
     }
@@ -110,19 +104,16 @@ const approveConcern = async (req, res) => {
     }
 
     // ✅ Ensure ConcernDate is stored as `YYYY-MM-DDT00:00:00.000Z` (UTC)
-    const concernDateUTC = moment.utc(ConcernDate, "YYYY-MM-DD").startOf("day").toDate();
+    const concernDateUTC = moment(ConcernDate).tz("Asia/Kolkata").format("YYYY-MM-DD");
 
-    // ✅ Convert `ActualPunchIn` and `ActualPunchOut` to proper UTC values
-    let punchInTime = ActualPunchIn ? moment.utc(ActualPunchIn, "HH:mm").toDate() : null;
-    let punchOutTime = ActualPunchOut ? moment.utc(ActualPunchOut, "HH:mm").toDate() : null;
+    let punchInTime = ActualPunchIn
+      ? moment(ActualPunchIn, "YYYY-MM-DD hh:mm A").tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm")
+      : moment.tz(ConcernDate + " 10:30", "YYYY-MM-DD HH:mm", "Asia/Kolkata");
 
-    // ✅ Use defaults only if actual values are missing
-    if (!punchInTime) punchInTime = moment.utc("10:30", "HH:mm").toDate();
-    if (!punchOutTime) punchOutTime = moment.utc("19:30", "HH:mm").toDate();
-
-    // ✅ Calculate working time (in minutes)
-    const workingTime = moment(punchOutTime).diff(moment(punchInTime), "minutes");
-
+    let punchOutTime = ActualPunchOut
+      ? moment(ActualPunchOut, "YYYY-MM-DD hh:mm A").tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm")
+      : moment.tz(ConcernDate + " 19:30", "YYYY-MM-DD HH:mm", "Asia/Kolkata");
+    const workingTime = 540
     // ✅ Determine work status based on working time
     let workStatus = "Absent";
     if (workingTime >= 300 && workingTime < 420) {
@@ -131,20 +122,16 @@ const approveConcern = async (req, res) => {
       workStatus = "Full Day";
     }
 
-    // ✅ Determine shift type based on `punchInTime`
-    let shiftType = "Day";
+    const user = await User.findOne({ _id: user_id })
     const punchInHour = moment(punchInTime).hour();
-    if (punchInHour >= 8 && punchInHour < 17) {
-      shiftType = "Day";
-    } else {
-      shiftType = "Night";
-    }
-
-    // ✅ Determine status based on punch-in time
+    const punchInMinute = moment(punchInTime).minute();
+    let shiftType=user.type;
     let status = "On Time";
     if (
-      (shiftType === "Day" && punchInHour > 10) ||
-      (shiftType === "Night" && punchInHour > 20)
+      (shiftType === "Day" &&
+        (punchInHour > 10 || (punchInHour === 10 && punchInMinute > 40))) ||
+      (shiftType === "Night" &&
+        (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 10)))
     ) {
       status = "Late";
     }
@@ -187,6 +174,8 @@ const approveConcern = async (req, res) => {
 
       await attendance.save();
     }
+    // concern.status = "Approved";
+    // await concern.save();
 
     res.status(200).json({
       message: "Concern approved and attendance updated",
@@ -199,7 +188,6 @@ const approveConcern = async (req, res) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
-
 
 // Reject Concern only if both user_id and concern_id match
 const rejectConcern = async (req, res) => {
