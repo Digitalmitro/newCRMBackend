@@ -174,8 +174,8 @@ const approveConcern = async (req, res) => {
 
       await attendance.save();
     }
-    // concern.status = "Approved";
-    // await concern.save();
+    concern.status = "Approved";
+    await concern.save();
 
     res.status(200).json({
       message: "Concern approved and attendance updated",
