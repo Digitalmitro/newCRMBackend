@@ -99,7 +99,10 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const today = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
+    let today = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
+    if (user?.type === "Night") {
+      today = moment().tz("Asia/Kolkata").subtract(1, "day").format("YYYY-MM-DD");
+    }
     const attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
