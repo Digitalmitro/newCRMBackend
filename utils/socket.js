@@ -1,6 +1,6 @@
 const socketIo = require("socket.io");
 const jwt = require("jsonwebtoken");
-
+const { sendMissedNotifications } = require("../utils/missedNotification");
 const onlineUsers = new Map(); // Store connected users
 
 let io;
@@ -36,10 +36,11 @@ const initSocket = (server) => {
   });
 
   // ✅ Handle events
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     console.log(`✅ Socket connected: ${socket.id}`);
 
     socket.emit("authenticated", { message: "User authenticated", userId: socket.userId });
+    await sendMissedNotifications(socket.userId);
     socket.emit("updateUserStatus", { userId: socket.userId, status: "online" });
     socket.on("joinChannel", (channelId) => {
     socket.join(channelId);

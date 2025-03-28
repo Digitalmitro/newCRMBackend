@@ -4,6 +4,7 @@ const User = require("../models/User");
 const CallBack = require("../models/CallBack");
 const Sale = require("../models/Sale");
 const Transfer = require("../models/Transfer");
+const { sendMissedNotifications } = require("../utils/missedNotification");
 const  RegisteradminModal  = require("../models/Admin");
 const otpGenerator = require("otp-generator");
 const sendMail = require("../services/sendMail");
@@ -63,7 +64,7 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
       return res.status(401).json({ message: "Invalid email or password" });
-
+    await sendMissedNotifications(user._id);
     const token = generateToken(user._id, user.name);
     res
       .status(200)
