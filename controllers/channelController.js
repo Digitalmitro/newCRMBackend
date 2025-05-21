@@ -29,10 +29,45 @@ exports.createChannel = async (req, res) => {
   }
 };
 
+exports.updateChannel = async (req, res) => {
+  try {
+    const channelId = req.params.id;
+    const { name, description, members } = req.body;
+    const userId = req.user.userId;
+
+    const channel = await Channel.findById(channelId);
+
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+
+    // Optional: Only allow owner to update
+    if (channel.owner.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "Not authorized to update this channel" });
+    }
+
+    if (name) channel.name = name;
+    if (description) channel.description = description;
+    if (members && Array.isArray(members)) {
+      const uniqueMembers = Array.from(new Set([...members, channel.owner.toString()]));
+      channel.members = uniqueMembers;
+    }
+
+    await channel.save();
+
+    res.status(200).json({ message: "Channel updated successfully", channel });
+  } catch (error) {
+    console.error("Error updating channel:", error);
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+};
+
+
 // Get all channels
 exports.getAllChannels = async (req, res) => {
   try {
     const userId = req.user.userId;
+
+    console.log(userId);
+    
 
     // Find channels where the user is a member
     const channels = await Channel.find({ members: { $in: [userId] } }).lean(); // Use .lean() for better performance
@@ -40,7 +75,7 @@ exports.getAllChannels = async (req, res) => {
     // Extract unique member IDs from all channels
     const memberIds = [...new Set(channels.flatMap((channel) => channel.members))];
 
-    // Fetch member details from different schemas
+    // Fetch member details from dif  ferent schemas
     const users = await User.find({ _id: { $in: memberIds } }, "name email").lean();
     const admins = await Admin.find({ _id: { $in: memberIds } }, "name email").lean();
     const clients = await Client.find({ _id: { $in: memberIds } }, "name email").lean();

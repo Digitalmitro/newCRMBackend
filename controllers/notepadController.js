@@ -43,11 +43,35 @@ const getNotes = async (req, res) => {
             return res.status(404).json({ error: "Notes not found for this user" });
         }
 
-        res.json( notes );
+        res.json(notes);
     } catch (error) {
         console.error("Error fetching notes:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 };
+const getUsersNotesForAdmin = async (req, res) => {
+    try {
+        const userId = req.params.id;
 
-module.exports = { saveNotes, getNotes };
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const notes = await NotesModel.findOne({ user_id: userId });
+
+        if (!notes) {
+            return res.status(404).json({ error: "No notes found for this user" });
+        }
+
+        res.status(200).json({
+            message: "Notes fetched successfully",
+            data: notes
+        });
+
+    } catch (error) {
+        console.error("Error fetching notes:", error);
+        res.status(500).json({ error: "Something went wrong while fetching notes" });
+    }
+}
+
+module.exports = { saveNotes, getNotes, getUsersNotesForAdmin };

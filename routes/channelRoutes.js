@@ -7,7 +7,8 @@ const {authMiddleware} = require("../middlewares/authMiddleware")
 router.post("/create",authMiddleware, channelController.createChannel);
 router.get("/all", authMiddleware,channelController.getAllChannels);
 router.get("/:id", channelController.getChannelById);
-router.delete("/:id", channelController.deleteChannel);
+router.delete("/:id", authMiddleware,channelController.deleteChannel);
+router.put("/:id", authMiddleware, channelController.updateChannel);
 
 //inviate
 router.get("/invite/:channelId", channelController.getInviteLink);
