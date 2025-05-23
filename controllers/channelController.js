@@ -92,7 +92,7 @@ exports.getAllChannels = async (req, res) => {
     // Attach full member details to each channel
     const channelsWithMembers = channels.map((channel) => ({
       ...channel,
-      members: channel.members.map((memberId) => memberMap[memberId.toString()] || null), // Replace with full data
+      members: channel.members.map((memberId) => memberMap[memberId?.toString()] || null), // Replace with full data
     }));
 
     res.status(200).json(channelsWithMembers);

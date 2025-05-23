@@ -10,4 +10,4 @@ const DirectMessageSchema = new mongoose.Schema({
   
   const DirectMessage = mongoose.model("DirectMessage", DirectMessageSchema);
   module.exports = DirectMessage;
-  
+    

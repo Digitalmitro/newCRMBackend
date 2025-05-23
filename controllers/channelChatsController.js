@@ -15,7 +15,7 @@ const sendChannelMessage = async (req, res) => {
     // ✅ Save message to database
     const newMessage = new ChannelMessage({ sender, channelId, message });
     await newMessage.save();
-    // ✅ Fetch Channel Name
+    // ✅ Fetch Channel Name  
     const channel = await Channel.findById(channelId);
     const channelName = channel ? channel.name : "Unknown Channel";
     const io = getIo(); // Get the initialized Socket.io instance
@@ -24,7 +24,8 @@ const sendChannelMessage = async (req, res) => {
     io.to(channelId).emit("new-channel-message", newMessage);
     // console.log(`✅ Message sent to channel: ${channelId}`);
     io.to(channelId).emit("receive-notification", {
-      title: "New Channel Message",
+      title: channelName,
+      sender:channelId,
       description: `You have a new message in channel ${channelName}`,
       timestamp: new Date(),
     });

@@ -31,6 +31,9 @@ const sendMessage = async (req, res) => {
       io.to(receiverSocket).emit("receive-notification", {
         title: `${senderName} sent a message`,
         description:message,
+        sender,
+        name:senderName,
+        type:'DM',
         timestamp: new Date()
       });
       // console.log(`✅ Message sent to receiver: ${receiver}`);

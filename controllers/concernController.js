@@ -1,7 +1,8 @@
 const { ConcernModel } = require("../models/concern");
 const Attendance = require("../models/Attendance");
 const User = require("../models/User")
-const moment = require('moment-timezone')
+const moment = require('moment-timezone');
+const { triggerSoftRefresh } = require("../utils/socket");
 // 📌 Submit a Concern (Book Leave, Forgot Clock Out, Employee Concern)
 const submitConcern = async (req, res) => {
   try {
@@ -24,6 +25,7 @@ const submitConcern = async (req, res) => {
     });
 
     await newConcern.save();
+    await triggerSoftRefresh("Concern");
     res.status(201).json({ success: true, message: "Concern submitted successfully", data: newConcern });
 
   } catch (error) {
@@ -79,7 +81,7 @@ const updateConcernStatus = async (req, res) => {
     if (!updatedConcern) {
       return res.status(404).json({ success: false, message: "Concern not found" });
     }
-
+// await triggerSoftRefresh("Concern");
     res.status(200).json({ success: true, message: "Concern updated successfully", data: updatedConcern });
   } catch (error) {
     console.error("Error updating concern:", error);

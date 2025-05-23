@@ -1,5 +1,6 @@
 const NotesModel = require("../models/Notes");
 const RegisterUserModel = require("../models/User");
+const { triggerSoftRefresh } = require("../utils/socket");
 
 // Create or update notes
 const saveNotes = async (req, res) => {
@@ -17,6 +18,8 @@ const saveNotes = async (req, res) => {
             { $set: { notes } },
             { new: true, upsert: true }
         );
+
+        await triggerSoftRefresh("Notes");
 
         // // Update the user's notes reference
         // await RegisterUserModel.findByIdAndUpdate(

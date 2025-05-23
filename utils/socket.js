@@ -8,7 +8,7 @@ let io;
 const initSocket = (server) => {
   io = socketIo(server, {
     cors: {
-      origin: [process.env.Client_Url, process.env.Admin_Url,process.env.Guest_Url], // Update based on frontend URL
+      origin: [process.env.Client_Url, process.env.Admin_Url, process.env.Guest_Url], // Update based on frontend URL
       methods: ["GET", "POST"],
     },
   });
@@ -16,7 +16,7 @@ const initSocket = (server) => {
   // ✅ Middleware for authentication
   io.use((socket, next) => {
     const token = socket.handshake.auth.token || socket.handshake.headers.authorization;
-    
+
     if (!token) {
       console.log("❌ No token provided, rejecting connection.");
       return next(new Error("Authentication error"));
@@ -43,20 +43,22 @@ const initSocket = (server) => {
     await sendMissedNotifications(socket.userId);
     socket.emit("updateUserStatus", { userId: socket.userId, status: "online" });
     socket.on("joinChannel", (channelId) => {
-    socket.join(channelId);
+      socket.join(channelId);
       console.log(`User ${socket.id} joined channel ${channelId}`);
-     });
-     
-  //  // ✅ Handle user requesting the list of online users
-   socket.on("getOnlineUsers", () => {
-    const onlineUserIds = Array.from(onlineUsers.keys());
-    socket.emit("onlineUsersList", onlineUserIds);
-  });
+    });
+
+    //  // ✅ Handle user requesting the list of online users
+    socket.on("getOnlineUsers", () => {
+      const onlineUserIds = Array.from(onlineUsers.keys());
+      socket.emit("onlineUsersList", onlineUserIds);
+    });
     socket.on("disconnect", () => {
       console.log(`⚠️ User disconnected: ${socket.userId}`);
       onlineUsers.delete(socket.userId);
       socket.emit("updateUserStatus", { userId: socket.userId, status: "offline" });
     });
+
+   
   });
 
   return io;
@@ -69,4 +71,19 @@ const getIo = () => {
   return io;
 };
 
-module.exports = { initSocket, getIo, onlineUsers };
+const triggerSoftRefresh = (type, targetUserId = null) => {
+  const io = getIo();
+
+  if (targetUserId) {
+    const socketId = onlineUsers.get(targetUserId);
+    if (socketId) {
+      io.to(socketId).emit("soft-refresh", { type });
+      console.log(`📡 Soft refresh sent to user ${targetUserId} for type: ${type}`);
+    }
+  } else {
+    io.emit("soft-refresh", { type });
+    console.log(`🌍 Broadcast soft refresh for type: ${type}`);
+  }
+};
+
+module.exports = { initSocket, getIo, onlineUsers,triggerSoftRefresh };
