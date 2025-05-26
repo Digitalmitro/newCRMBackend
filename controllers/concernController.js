@@ -81,7 +81,7 @@ const updateConcernStatus = async (req, res) => {
     if (!updatedConcern) {
       return res.status(404).json({ success: false, message: "Concern not found" });
     }
-// await triggerSoftRefresh("Concern");
+    // await triggerSoftRefresh("Concern");
     res.status(200).json({ success: true, message: "Concern updated successfully", data: updatedConcern });
   } catch (error) {
     console.error("Error updating concern:", error);
@@ -127,7 +127,7 @@ const approveConcern = async (req, res) => {
     const user = await User.findOne({ _id: user_id })
     const punchInHour = moment(punchInTime).hour();
     const punchInMinute = moment(punchInTime).minute();
-    let shiftType=user.type;
+    let shiftType = user.type;
     let status = "On Time";
     if (
       (shiftType === "Day" &&
@@ -178,7 +178,8 @@ const approveConcern = async (req, res) => {
     }
     concern.status = "Approved";
     await concern.save();
-
+    // console.log("approved")
+    await triggerSoftRefresh("Concern_Employee");
     res.status(200).json({
       message: "Concern approved and attendance updated",
       concern,
@@ -205,7 +206,7 @@ const rejectConcern = async (req, res) => {
     if (!concern) {
       return res.status(404).json({ message: "Concern not found or does not belong to this user" });
     }
-
+    await triggerSoftRefresh("Concern_Employee");
     res.status(200).json({ message: "Concern rejected successfully", concern });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });

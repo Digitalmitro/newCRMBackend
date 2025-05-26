@@ -3,6 +3,7 @@ const CallBack = require("../models/CallBack");
 const Sale = require("../models/Sale");
 const Transfer = require("../models/Transfer");
 const User = require("../models/User");
+const { triggerSoftRefresh } = require("../utils/socket");
 const { checkWeekendOrHoliday } = require("../utils/weekHoliday");
 const moment = require("moment");
 const moments = require("moment-timezone");
@@ -80,6 +81,7 @@ exports.punchIn = async (req, res) => {
     });
 
     await attendance.save();
+      await triggerSoftRefresh("Attendence");
     res.status(201).json({ message: "Punch In successful", data: attendance });
   } catch (error) {
     console.error(error);
@@ -134,6 +136,7 @@ exports.punchOut = async (req, res) => {
 
     attendance.workStatus = workStatus;
     await attendance.save();
+        await triggerSoftRefresh("Attendence");
     res.status(200).json({ message: "Punch Out successful", data: attendance });
   } catch (error) {
     console.error(error);
@@ -174,7 +177,7 @@ exports.updateLeaveStatus = async (req, res) => {
       attendance.status = leaveApproved ? "Leave" : "Absent";
       attendance.workStatus = leaveApproved ? "Leave" : "Absent";
       await attendance.save();
-
+    await triggerSoftRefresh("Attendence");
       res
         .status(200)
         .json({
@@ -243,6 +246,7 @@ exports.handlePunch = async (req, res) => {
       attendance.isPunchedIn = false;
 
       await attendance.save();
+          await triggerSoftRefresh("Attendence");
       return res
         .status(200)
         .json({ message: "Punch-Out recorded", data: attendance });

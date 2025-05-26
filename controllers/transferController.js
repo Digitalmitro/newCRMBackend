@@ -3,6 +3,7 @@ const RegisteruserModal = require("../models/User");
 const CallbackModel = require("../models/CallBack");
 const SaleModel = require("../models/Sale");
 const mongoose = require("mongoose");
+const { triggerSoftRefresh } = require("../utils/socket");
 
 // ✅ Create a new transfer
 exports.createTransfer = async (req, res) => {
@@ -34,7 +35,7 @@ exports.createTransfer = async (req, res) => {
     });
 
     await newTransfer.save();
-
+ await triggerSoftRefresh("Transfer_Employee");
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
@@ -56,7 +57,7 @@ exports.moveTransferToSales = async (req, res) => {
     await RegisteruserModal.findByIdAndUpdate(deletedTransfer.user_id, {
       $push: { sale: newSale._id },
     });
-
+ await triggerSoftRefresh("Sale_Employee");
     res.send({
       message: "Transfer deleted and sales record created successfully",
       sale: newSale,
@@ -81,7 +82,7 @@ exports.moveTransferToCallback = async (req, res) => {
     await RegisteruserModal.findByIdAndUpdate(deletedTransfer.user_id, {
       $push: { callback: newCallback._id },
     });
-
+ await triggerSoftRefresh("Transfer_Employee");
     res.send({
       message: "Transfer deleted and callback record created successfully",
       callback: newCallback,
@@ -185,7 +186,7 @@ exports.updateTransfer = async (req, res) => {
     if (!updatedPackage) {
       return res.status(404).json({ message: "Package not found" });
     }
-
+ await triggerSoftRefresh("Transfer_Employee");
     res.json({ message: "Package updated successfully", data: updatedPackage });
   } catch (error) {
     console.error(error);
@@ -203,7 +204,7 @@ exports.deleteTransfer = async (req, res) => {
     if (!deletedPackage) {
       return res.status(404).json({ message: "Package not found" });
     }
-
+ await triggerSoftRefresh("Transfer_Employee");
     res.json({ message: "Package deleted successfully" });
   } catch (error) {
     console.error(error);

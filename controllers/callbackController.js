@@ -2,6 +2,7 @@ const CallbackModel = require("../models/CallBack");
 const RegisteruserModal = require("../models/User");
 const SaleModel = require("../models/Sale");
 const mongoose = require("mongoose");
+const { triggerSoftRefresh } = require("../utils/socket");
 
 // ✅ Create a new callback
 exports.createCallback = async (req, res) => {
@@ -32,7 +33,7 @@ exports.createCallback = async (req, res) => {
     });
 
     await newCallback.save();
-
+ await triggerSoftRefresh("Callback");
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
@@ -54,7 +55,7 @@ exports.moveCallbackToSales = async (req, res) => {
     await RegisteruserModal.findByIdAndUpdate(deletedCallback.user_id, {
       $push: { sale: newSale._id },
     });
-
+ await triggerSoftRefresh("Callback");
     res.send({
       message: "Callback deleted and sales record created successfully",
       sale: newSale,
@@ -156,6 +157,7 @@ exports.updateCallback = async (req, res) => {
       req.body,
       { new: true }
     );
+     await triggerSoftRefresh("Callback");
     if (!updatedCallback) return res.status(404).send("Callback not found");
     res.send("Callback updated successfully");
   } catch (error) {
@@ -171,6 +173,7 @@ exports.deleteCallback = async (req, res) => {
       req.params.id
     );
     if (!deletedCallback) return res.status(404).send("Callback not found");
+     await triggerSoftRefresh("Callback");
     res.send("Callback deleted successfully");
   } catch (error) {
     console.error(error);

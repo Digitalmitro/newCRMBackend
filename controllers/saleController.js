@@ -1,30 +1,31 @@
 const SaleModel = require("../models/Sale");
 const RegisteruserModal = require("../models/User");
 const mongoose = require("mongoose");
+const { triggerSoftRefresh } = require("../utils/socket");
 
 // Create a new sale and associate with user
 exports.createSale = async (req, res) => {
-  const userId=req.user.userId;
+  const userId = req.user.userId;
   try {
     const { name, email, phone, calldate, domainName, buget, country, address, comments } = req.body;
-    const newSales = new SaleModel({ 
-        name, 
-        email, 
-        phone, 
-        calldate, 
-        domainName, 
-        buget, 
-        country, 
-        address, 
-        comments,
-        user_id: userId 
+    const newSales = new SaleModel({
+      name,
+      email,
+      phone,
+      calldate,
+      domainName,
+      buget,
+      country,
+      address,
+      comments,
+      user_id: userId
     });
-    
-    
+
+
     await newSales.save();
+    await triggerSoftRefresh("Sale_Employee");
 
 
-    
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);
@@ -67,8 +68,9 @@ exports.getAllSales = async (req, res) => {
     const totalSales = await SaleModel.countDocuments();
 
     const data = await SaleModel.find().skip(skip)
-    .limit(limit).sort({createdAt:-1});
-    res.json({ page,
+      .limit(limit).sort({ createdAt: -1 });
+    res.json({
+      page,
       limit,
       totalPages: Math.ceil(totalSales / limit),
       totalSales,
@@ -90,10 +92,11 @@ exports.getSaleById = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Get total count (for frontend pagination info)
-    const totalSales = await SaleModel.countDocuments({user_id});
+    const totalSales = await SaleModel.countDocuments({ user_id });
 
-    const data = await SaleModel.find({user_id}).skip(skip).limit(limit).sort({createdAt:-1});
-    res.json({ page,
+    const data = await SaleModel.find({ user_id }).skip(skip).limit(limit).sort({ createdAt: -1 });
+    res.json({
+      page,
       limit,
       totalPages: Math.ceil(totalSales / limit),
       totalSales,
@@ -112,7 +115,7 @@ exports.updateSale = async (req, res) => {
     const updatedSale = await SaleModel.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
     if (!updatedSale) return res.status(404).json({ error: "Sale not found" });
-
+    await triggerSoftRefresh("Sale_Employee");
     res.json({ message: "Sale updated successfully", data: updatedSale });
   } catch (error) {
     console.error(error);
@@ -126,7 +129,7 @@ exports.deleteSale = async (req, res) => {
     const deletedSale = await SaleModel.findByIdAndDelete(req.params.id);
 
     if (!deletedSale) return res.status(404).json({ error: "Sale not found" });
-
+    await triggerSoftRefresh("Sale_Employee");
     res.json({ message: "Sale deleted successfully" });
   } catch (error) {
     console.error(error);
