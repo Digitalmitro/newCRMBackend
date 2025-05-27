@@ -4,17 +4,21 @@ const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 
 const { getIo, onlineUsers } = require("../utils/socket");
+const sendMail = require("../services/sendMail");
 
 // Send a new message
 const sendMessage = async (req, res) => {
   try {
     const { sender, receiver, message } = req.body;
-    
+
     if (!sender || !receiver || !message) {
       return res.status(400).json({ success: false, message: "All fields are required." });
     }
+
     const senderUser = await User.findById(sender);
-    const senderName = senderUser ? senderUser.name : "Unknown";
+    const receiverUser = await User.findById(receiver);
+
+    const senderName = senderUser ? senderUser.name : "Admin";
     // ✅ Save message to database
     const newMessage = new DirectMessage({ sender, receiver, message });
     await newMessage.save();
@@ -25,25 +29,42 @@ const sendMessage = async (req, res) => {
     const senderSocket = onlineUsers.get(sender);
     const receiverSocket = onlineUsers.get(receiver);
 
+
     if (receiverSocket) {
       io.to(receiverSocket).emit("new-message", newMessage);
       io.to(receiverSocket).emit("updateUnread");
       io.to(receiverSocket).emit("receive-notification", {
         title: `${senderName} sent a message`,
-        description:message,
+        description: message,
         sender,
-        name:senderName,
-        type:'DM',
+        name: senderName,
+        type: 'DM',
         timestamp: new Date()
       });
       // console.log(`✅ Message sent to receiver: ${receiver}`);
     }
+
+
+
 
     if (senderSocket) {
       io.to(senderSocket).emit("new-message", newMessage);
       io.to(senderSocket).emit("updateUnread");
       // console.log(`✅ Message sent to sender: ${sender}`);
     }
+
+    if (receiverUser?.email) {
+      const mailSent = await sendMail(
+        receiverUser.email,
+        `New message from ${senderName}`,
+        message
+      );
+
+      if (!mailSent) {
+        console.warn("⚠️ Failed to send offline message email.");
+      }
+    }
+
 
     res.status(200).json({ success: true, message: "Message sent successfully.", data: newMessage });
   } catch (error) {
@@ -90,8 +111,8 @@ const getRecentChatUsers = async (req, res) => {
       { $sort: { createdAt: -1 } }, // Sort by latest message
       {
         $group: {
-          _id: { 
-            $cond: [{ $eq: ["$sender", userId] }, "$receiver", "$sender"] 
+          _id: {
+            $cond: [{ $eq: ["$sender", userId] }, "$receiver", "$sender"]
           }, // Group by the chat partner
           lastMessageTime: { $first: "$createdAt" },
           lastMessage: { $first: "$message" },
@@ -113,11 +134,11 @@ const getRecentChatUsers = async (req, res) => {
     const allUsers = [...users, ...adminUsers, ...clientUsers];
 
 
-        // Get the current user (who is making the request)
-        let currentUser = await User.findById({_id:userId}, "name _id");
-        if (!currentUser) currentUser = await Admin.findById({_id:userId}, "name _id");
-        if (!currentUser) currentUser = await Client.findById({_id:userId}, "name _id");
-       console.log(currentUser)
+    // Get the current user (who is making the request)
+    let currentUser = await User.findById({ _id: userId }, "name _id");
+    if (!currentUser) currentUser = await Admin.findById({ _id: userId }, "name _id");
+    if (!currentUser) currentUser = await Client.findById({ _id: userId }, "name _id");
+    console.log(currentUser)
     // Step 3: Get unseen message count for each user
     const usersWithDetails = await Promise.all(
       allUsers.map(async (user) => {
@@ -142,7 +163,7 @@ const getRecentChatUsers = async (req, res) => {
       return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
     });
 
-    res.status(200).json({ success: true, user: currentUser,chatUsers: usersWithDetails });
+    res.status(200).json({ success: true, user: currentUser, chatUsers: usersWithDetails });
   } catch (error) {
     console.error("Error fetching recent chat users:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -171,7 +192,7 @@ const getRecentChatUsers = async (req, res) => {
 //           receiver: loggedInUserId,
 //           seen: false,
 //         });
-       
+
 //         return {
 //           id: user._id,
 //           name: user.name,
@@ -253,7 +274,7 @@ const getAllUser = async (req, res) => {
   }
 };
 
-const readMessage = async (req,res) =>{
+const readMessage = async (req, res) => {
   try {
     const { senderId } = req.body;
     const receiverId = req.user.userId;
@@ -270,4 +291,4 @@ const readMessage = async (req,res) =>{
   }
 }
 
-module.exports = { sendMessage, getMessages, getRecentChatUsers,getAllUser, readMessage };
+module.exports = { sendMessage, getMessages, getRecentChatUsers, getAllUser, readMessage };
