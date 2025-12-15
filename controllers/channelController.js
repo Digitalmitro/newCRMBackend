@@ -60,6 +60,39 @@ exports.updateChannel = async (req, res) => {
   }
 };
 
+// Remove a member from a channel (owner-only)
+exports.removeMember = async (req, res) => {
+  try {
+    const channelId = req.params.id;
+    const { memberId } = req.body;
+    const requesterId = req.user.userId;
+
+    if (!memberId) {
+      return res.status(400).json({ error: "memberId is required" });
+    }
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+
+    if (channel.owner?.toString() !== requesterId?.toString()) {
+      return res.status(403).json({ error: "Only the channel owner can remove members" });
+    }
+
+    const beforeCount = channel.members.length;
+    channel.members = channel.members.filter((m) => m.toString() !== memberId.toString());
+
+    if (channel.members.length === beforeCount) {
+      return res.status(400).json({ error: "Member not found in channel" });
+    }
+
+    await channel.save();
+    res.status(200).json({ message: "Member removed successfully", channel });
+  } catch (error) {
+    console.error("Error removing member:", error);
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+};
+
 
 // Get all channels
 exports.getAllChannels = async (req, res) => {

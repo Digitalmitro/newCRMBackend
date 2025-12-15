@@ -9,6 +9,7 @@ router.get("/all", authMiddleware,channelController.getAllChannels);
 router.get("/:id", channelController.getChannelById);
 router.delete("/:id", authMiddleware,channelController.deleteChannel);
 router.put("/:id", authMiddleware, channelController.updateChannel);
+router.post("/:id/remove-member",authMiddleware, channelController.removeMember);
 
 //inviate
 router.get("/invite/:channelId", channelController.getInviteLink);

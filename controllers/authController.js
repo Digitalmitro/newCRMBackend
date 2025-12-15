@@ -87,7 +87,7 @@ exports.getUserName = async (req, res) => {
 // Admin Signup
 exports.adminSignup = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, type } = req.body;
 
     // Check if admin already exists
     const existingAdmin = await RegisteradminModal.findOne({ email });
@@ -104,6 +104,7 @@ exports.adminSignup = async (req, res) => {
       name,
       email,
       phone,
+      type,
       password: hashedPassword,
     });
 
