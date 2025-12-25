@@ -7,6 +7,8 @@ const {
   adminLogin,
   adminSignup,
   verifyAdminOtp,
+  getAdminProfile,
+  updateAdminProfile,
   getAllUsers,
   getUserById,
   updateUser,
@@ -26,6 +28,8 @@ router.get("/all", authMiddleware, getUserName);
 router.post("/loginadmin", adminLogin);
 router.post("/registeradmin", adminSignup);
 router.post("/verify-otp", verifyAdminOtp);
+router.get("/admin/profile", authMiddleware, getAdminProfile);
+router.put("/admin/profile", authMiddleware, updateAdminProfile);
 
 // 🔹 Get all users
 router.get("/", getAllUsers);

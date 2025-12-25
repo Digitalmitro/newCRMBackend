@@ -16,7 +16,7 @@ const checkWeekendOrHoliday = (date) => {
   if (isHoliday) {
     return "Holiday";
   } else if (isWeekend) {
-    return "Weekend";
+    return "Week-Off";
   }
 
   return null;

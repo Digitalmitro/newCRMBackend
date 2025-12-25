@@ -212,30 +212,57 @@ exports.deleteTransfer = async (req, res) => {
   }
 };
 
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 exports.searchTransfers = async (req, res) => {
   try {
-    const { email, phone, domainName, page = 1, limit = 10 } = req.query;
+    const {
+      q,
+      name,
+      email,
+      phone,
+      domainName,
+      scope = "user",
+      page = 1,
+      limit = 10,
+    } = req.query;
     const query = {};
 
-    if (email) query.email = { $regex: email, $options: "i" };
-    if (phone) query.phone = { $regex: phone, $options: "i" };
-    if (domainName) query.domainName = { $regex: domainName, $options: "i" };
+    if (scope !== "all" && req.user?.userId) {
+      query.user_id = req.user.userId;
+    }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    if (name) query.name = { $regex: escapeRegex(name), $options: "i" };
+    if (email) query.email = { $regex: escapeRegex(email), $options: "i" };
+    if (phone) query.phone = { $regex: escapeRegex(phone), $options: "i" };
+    if (domainName) query.domainName = { $regex: escapeRegex(domainName), $options: "i" };
 
-    // Fetch matching transfers with pagination
+    if (q && q.trim()) {
+      const safeQ = escapeRegex(q.trim());
+      const regex = new RegExp(safeQ, "i");
+      query.$or = [
+        { name: regex },
+        { email: regex },
+        { phone: regex },
+        { domainName: regex },
+      ];
+    }
+
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = Math.max(parseInt(limit, 10) || 10, 1);
+    const skip = (parsedPage - 1) * parsedLimit;
+
     const data = await TransferModel.find(query)
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(parsedLimit)
       .sort({ createdAt: -1 });
 
-    // Count total documents matching the query
     const totalCount = await TransferModel.countDocuments(query);
 
     res.status(200).json({
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(totalCount / limit),
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(totalCount / parsedLimit),
       totalCount,
       data,
     });

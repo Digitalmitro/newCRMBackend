@@ -22,6 +22,6 @@ router.get("/all", getAllTransfers);
 router.get("/user",authMiddleware, getTransferById);
 router.put("/:id", updateTransfer);
 router.delete("/:id", deleteTransfer);
-router.get("/search",searchTransfers);
+router.get("/search", authMiddleware, searchTransfers);
 
 module.exports = router;

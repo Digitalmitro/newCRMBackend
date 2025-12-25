@@ -15,6 +15,13 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    type: {
+      type: String,
+    },
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     image: {
       type: String, 
     },

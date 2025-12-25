@@ -17,6 +17,8 @@ const sendMissedNotifications = async (userId) => {
       io.to(userSocket).emit("receive-notification", {
         title: notification.title,
         description: notification.description,
+        type: notification.type,
+        sender: notification.sender,
         timestamp: notification.createdAt,
       });
     });

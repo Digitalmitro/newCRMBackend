@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     phone: { type: Number, required: true },
     password: { type: String, required: true },
+    employeeType: { type: String, enum: ["Full-Time", "Part-Time"], default: "Full-Time" },
     type: { type: String, enum: ["Day", "Night"], required: true },
   },
   { timestamps: true }

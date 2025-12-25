@@ -17,12 +17,12 @@ const attendanceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['On Time', 'Late', 'Holiday', 'Weekend', 'Leave', 'Absent'],
+    enum: ['On Time', 'Late', 'Holiday', 'Weekend', 'Week-Off', 'Leave', 'Absent'],
     default: 'Absent'
   },
   workStatus: {
     type: String,
-    enum: ['Half Day', 'Full Day', 'Absent', 'Leave'],
+    enum: ['Half Day', 'Full Day', 'Absent', 'Leave', 'Week-Off', 'Holiday', 'Weekend'],
     default: 'Absent'
   },
   ip: { type: String },

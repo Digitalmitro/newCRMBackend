@@ -1,8 +1,20 @@
 const { ConcernModel } = require("../models/concern");
 const Attendance = require("../models/Attendance");
-const User = require("../models/User")
+const User = require("../models/User");
+const Admin = require("../models/Admin");
+const Client = require("../models/Client");
+const Notification = require("../models/Notifications");
 const moment = require('moment-timezone');
-const { triggerSoftRefresh } = require("../utils/socket");
+const { getIo, onlineUsers, triggerSoftRefresh } = require("../utils/socket");
+
+const resolveUserEntity = async (id) => {
+  if (!id) return null;
+  return (
+    (await User.findById(id)) ||
+    (await Admin.findById(id)) ||
+    (await Client.findById(id))
+  );
+};
 // 📌 Submit a Concern (Book Leave, Forgot Clock Out, Employee Concern)
 const submitConcern = async (req, res) => {
   try {
@@ -25,6 +37,52 @@ const submitConcern = async (req, res) => {
     });
 
     await newConcern.save();
+
+    const reporter = await resolveUserEntity(user_id);
+    const reporterName = reporter?.name || "User";
+    const admins = await Admin.find({}, "_id").lean();
+    const adminIds = admins
+      .map((admin) => admin?._id?.toString())
+      .filter((id) => id && id !== user_id.toString());
+
+    if (adminIds.length > 0) {
+      const title = `New concern: ${concernType}`;
+      const description = `${reporterName} reported: ${message}`;
+      const notificationDocs = await Notification.insertMany(
+        adminIds.map((id) => ({
+          userId: id,
+          title,
+          description,
+          type: "CONCERN",
+          sender: user_id,
+        }))
+      );
+      const io = getIo();
+      const deliveredIds = [];
+      adminIds.forEach((id, idx) => {
+        const socketId = onlineUsers.get(id);
+        if (socketId) {
+          const doc = notificationDocs[idx];
+          io.to(socketId).emit("receive-notification", {
+            title: doc.title,
+            description: doc.description,
+            type: doc.type,
+            sender: doc.sender,
+            timestamp: doc.createdAt,
+          });
+          if (doc?._id) {
+            deliveredIds.push(doc._id);
+          }
+        }
+      });
+      if (deliveredIds.length > 0) {
+        await Notification.updateMany(
+          { _id: { $in: deliveredIds } },
+          { $set: { isRead: true } }
+        );
+      }
+    }
+
     await triggerSoftRefresh("Concern");
     res.status(201).json({ success: true, message: "Concern submitted successfully", data: newConcern });
 
@@ -178,6 +236,30 @@ const approveConcern = async (req, res) => {
     }
     concern.status = "Approved";
     await concern.save();
+    const approveTitle = "Concern approved";
+    const approveDescription = `Your ${concern.concernType || "concern"} for ${concern.ConcernDate || "the selected date"} was approved.`;
+    const approveNotification = await Notification.create({
+      userId: user_id,
+      title: approveTitle,
+      description: approveDescription,
+      type: "CONCERN_STATUS",
+      sender: null,
+    });
+    const approveSocketId = onlineUsers.get(user_id.toString());
+    if (approveSocketId) {
+      const io = getIo();
+      io.to(approveSocketId).emit("receive-notification", {
+        title: approveNotification.title,
+        description: approveNotification.description,
+        type: approveNotification.type,
+        sender: approveNotification.sender,
+        timestamp: approveNotification.createdAt,
+      });
+      await Notification.updateOne(
+        { _id: approveNotification._id },
+        { $set: { isRead: true } }
+      );
+    }
     // console.log("approved")
     await triggerSoftRefresh("Concern_Employee");
     res.status(200).json({
@@ -205,6 +287,30 @@ const rejectConcern = async (req, res) => {
 
     if (!concern) {
       return res.status(404).json({ message: "Concern not found or does not belong to this user" });
+    }
+    const rejectTitle = "Concern rejected";
+    const rejectDescription = `Your ${concern.concernType || "concern"} for ${concern.ConcernDate || "the selected date"} was rejected.`;
+    const rejectNotification = await Notification.create({
+      userId: user_id,
+      title: rejectTitle,
+      description: rejectDescription,
+      type: "CONCERN_STATUS",
+      sender: null,
+    });
+    const rejectSocketId = onlineUsers.get(user_id.toString());
+    if (rejectSocketId) {
+      const io = getIo();
+      io.to(rejectSocketId).emit("receive-notification", {
+        title: rejectNotification.title,
+        description: rejectNotification.description,
+        type: rejectNotification.type,
+        sender: rejectNotification.sender,
+        timestamp: rejectNotification.createdAt,
+      });
+      await Notification.updateOne(
+        { _id: rejectNotification._id },
+        { $set: { isRead: true } }
+      );
     }
     await triggerSoftRefresh("Concern_Employee");
     res.status(200).json({ message: "Concern rejected successfully", concern });

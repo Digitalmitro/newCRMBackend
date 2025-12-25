@@ -3,7 +3,7 @@ const { getIo, onlineUsers } = require("../utils/socket");
 
 const sendNotification = async (req, res) => {
   try {
-    let { userId, title, description } = req.body;
+    let { userId, title, description, type, sender } = req.body;
 
     // Normalize recipients; accept single id, array of ids, or "ALL"
     const targets = Array.isArray(userId) ? userId : [userId].filter(Boolean);
@@ -13,21 +13,26 @@ const sendNotification = async (req, res) => {
     const dedupSince = new Date(Date.now() - dedupWindowMs);
 
     if (wantsBroadcast) {
-      const existing = await Notification.findOne({
+      const existingQuery = {
         userId: null,
         title,
         description,
         createdAt: { $gte: dedupSince },
-      });
+      };
+      if (type) existingQuery.type = type;
+      if (sender) existingQuery.sender = sender;
+      const existing = await Notification.findOne(existingQuery);
 
       if (existing) {
         return res.status(200).json({ success: true, notification: existing, deduped: true });
       }
 
-      const notification = await Notification.create({ userId: null, title, description });
+      const notification = await Notification.create({ userId: null, title, description, type, sender });
       io.emit("receive-notification", {
         title: notification.title,
         description: notification.description,
+        type: notification.type,
+        sender: notification.sender,
         timestamp: notification.createdAt,
       });
       return res.status(200).json({ success: true, notification });
@@ -41,12 +46,15 @@ const sendNotification = async (req, res) => {
 
     // Filter out targets that already have a recent identical notification
     const dedupedTargets = [];
-    const existingByUser = await Notification.find({
+    const existingByUserQuery = {
       userId: { $in: uniqueTargets },
       title,
       description,
       createdAt: { $gte: dedupSince },
-    }).lean();
+    };
+    if (type) existingByUserQuery.type = type;
+    if (sender) existingByUserQuery.sender = sender;
+    const existingByUser = await Notification.find(existingByUserQuery).lean();
     const seen = new Set(existingByUser.map((n) => n.userId?.toString()));
     uniqueTargets.forEach((id) => {
       if (!seen.has(id?.toString())) {
@@ -59,9 +67,10 @@ const sendNotification = async (req, res) => {
     }
 
     const notificationDocs = await Notification.insertMany(
-      dedupedTargets.map((id) => ({ userId: id, title, description }))
+      dedupedTargets.map((id) => ({ userId: id, title, description, type, sender }))
     );
 
+    const deliveredIds = [];
     dedupedTargets.forEach((id, idx) => {
       const socketId = onlineUsers.get(id?.toString());
       if (socketId) {
@@ -69,10 +78,22 @@ const sendNotification = async (req, res) => {
         io.to(socketId).emit("receive-notification", {
           title: doc.title,
           description: doc.description,
+          type: doc.type,
+          sender: doc.sender,
           timestamp: doc.createdAt,
         });
+        if (doc?._id) {
+          deliveredIds.push(doc._id);
+        }
       }
     });
+
+    if (deliveredIds.length > 0) {
+      await Notification.updateMany(
+        { _id: { $in: deliveredIds } },
+        { $set: { isRead: true } }
+      );
+    }
 
     res.status(200).json({ success: true, notifications: notificationDocs });
   } catch (error) {
