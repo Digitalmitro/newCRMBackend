@@ -1,4 +1,5 @@
 const DirectMessage = require("../models/DirectMessage");
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
@@ -16,10 +17,39 @@ const resolveUserEntity = async (id) => {
   );
 };
 
+const isImageUrl = (value = "") => /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(value);
+const isDocumentUrl = (value = "") => /\.(pdf|docx|doc|xlsx|xls|pptx|ppt|csv|txt|zip|rar)$/i.test(value);
+const safeDecode = (value = "") => {
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+};
+const getFileNameFromUrl = (value = "") => {
+  if (!value) return "file";
+  try {
+    const url = new URL(value);
+    return safeDecode(url.pathname.split("/").pop() || "file");
+  } catch (error) {
+    const name = value.split("/").pop() || "file";
+    return safeDecode(name.split("?")[0]);
+  }
+};
+const buildReplyPreview = (value = "") => {
+  if (!value) return "";
+  if (value.startsWith("http")) {
+    if (isImageUrl(value)) return "Photo";
+    if (isDocumentUrl(value)) return `Document: ${getFileNameFromUrl(value)}`;
+    return "Link";
+  }
+  return value.length > 80 ? `${value.slice(0, 80)}...` : value;
+};
+
 // Send a new message
 const sendMessage = async (req, res) => {
   try {
-    const { sender, receiver, message } = req.body;
+    const { sender, receiver, message, replyTo } = req.body;
 
     if (!sender || !receiver || !message) {
       return res.status(400).json({ success: false, message: "All fields are required." });
@@ -33,8 +63,39 @@ const sendMessage = async (req, res) => {
         ? sender.toString() === receiver.toString()
         : sender === receiver;
 
+    let replyMeta;
+    if (replyTo) {
+      if (!mongoose.Types.ObjectId.isValid(replyTo)) {
+        return res.status(400).json({ success: false, message: "Invalid replyTo message." });
+      }
+      const replyDoc = await DirectMessage.findOne({
+        _id: replyTo,
+        $or: [
+          { sender, receiver },
+          { sender: receiver, receiver: sender },
+        ],
+      });
+      if (!replyDoc) {
+        return res.status(400).json({ success: false, message: "Reply target not found." });
+      }
+      const replySender = await resolveUserEntity(replyDoc.sender);
+      replyMeta = {
+        replyTo: replyDoc._id,
+        replyPreview: {
+          message: buildReplyPreview(replyDoc.message),
+          sender: replyDoc.sender,
+          senderName: replySender?.name || "User",
+        },
+      };
+    }
+
     // Save message to database
-    const newMessage = new DirectMessage({ sender, receiver, message });
+    const newMessage = new DirectMessage({
+      sender,
+      receiver,
+      message,
+      ...(replyMeta || {}),
+    });
     await newMessage.save();
 
     const io = getIo(); // Get the initialized Socket.io instance
