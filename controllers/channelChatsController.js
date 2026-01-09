@@ -16,6 +16,9 @@ const resolveUserEntity = async (id) => {
 };
 
 const isImageUrl = (value = "") => /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(value);
+const isVideoUrl = (value = "") => /\.(mp4|webm|ogg|mov|mkv)$/i.test(value);
+const isAudioUrl = (value = "") => /\.(mp3|wav|ogg|m4a|aac)$/i.test(value);
+const isPdfUrl = (value = "") => /\.pdf$/i.test(value);
 const isDocumentUrl = (value = "") => /\.(pdf|docx|doc|xlsx|xls|pptx|ppt|csv|txt|zip|rar)$/i.test(value);
 const safeDecode = (value = "") => {
   try {
@@ -38,6 +41,9 @@ const buildReplyPreview = (value = "") => {
   if (!value) return "";
   if (value.startsWith("http")) {
     if (isImageUrl(value)) return "Photo";
+    if (isVideoUrl(value)) return `Video: ${getFileNameFromUrl(value)}`;
+    if (isAudioUrl(value)) return `Audio: ${getFileNameFromUrl(value)}`;
+    if (isPdfUrl(value)) return `PDF: ${getFileNameFromUrl(value)}`;
     if (isDocumentUrl(value)) return `Document: ${getFileNameFromUrl(value)}`;
     return "Link";
   }
