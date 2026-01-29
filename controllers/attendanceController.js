@@ -393,33 +393,39 @@ exports.getAttendanceList = async (req, res) => {
 
 // Get attendance list with filters (month, year, date)
 exports.getAttendanceListforadmin = async (req, res) => {
-  const { month, year, date } = req.query;
-  console.log(month);
-  console.log(year);
+  const { month, year, date, startDate, endDate } = req.query;
   const userId = req.params.id;
 
   try {
     let query = { user_id: userId };
 
-    if (month) {
-      const startOfMonth = moment
-        .tz({ year, month: month - 1 }, "Asia/Kolkata")
-        .startOf("month")
-        .toDate();
-      const endOfMonth = moment
-        .tz({ year, month: month - 1 }, "Asia/Kolkata")
-        .endOf("month")
-        .toDate();
-      query.currentDate = { $gte: startOfMonth, $lte: endOfMonth };
-    }
-
-    if (date) {
+    if (startDate && endDate) {
+      const start = moment.tz(startDate, "Asia/Kolkata").startOf("day").toDate();
+      const end = moment.tz(endDate, "Asia/Kolkata").endOf("day").toDate();
+      query.currentDate = { $gte: start, $lte: end };
+    } else if (startDate || endDate) {
+      const singleDate = startDate || endDate;
+      const start = moment.tz(singleDate, "Asia/Kolkata").startOf("day").toDate();
+      const end = moment.tz(singleDate, "Asia/Kolkata").endOf("day").toDate();
+      query.currentDate = { $gte: start, $lte: end };
+    } else if (date) {
       const specificDate = moment
         .tz(date, "Asia/Kolkata")
         .startOf("day")
         .toDate();
       const endOfDay = moment.tz(date, "Asia/Kolkata").endOf("day").toDate();
       query.currentDate = { $gte: specificDate, $lte: endOfDay };
+    } else if (month) {
+      const resolvedYear = year || moment().tz("Asia/Kolkata").year();
+      const startOfMonth = moment
+        .tz({ year: resolvedYear, month: month - 1 }, "Asia/Kolkata")
+        .startOf("month")
+        .toDate();
+      const endOfMonth = moment
+        .tz({ year: resolvedYear, month: month - 1 }, "Asia/Kolkata")
+        .endOf("month")
+        .toDate();
+      query.currentDate = { $gte: startOfMonth, $lte: endOfMonth };
     }
 
     const data = await Attendance.find(query)

@@ -22,6 +22,8 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    // Tracks which users dismissed broadcast notifications
+    dismissedBy: { type: [mongoose.Schema.Types.ObjectId], default: [] },
     image: {
       type: String, 
     },

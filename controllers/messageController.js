@@ -130,7 +130,7 @@ const sendMessage = async (req, res) => {
       io.to(senderSocket).emit("updateUnread");
     }
 
-    if (receiverEntity?.email && !isSelfMessage) {
+    if (!receiverSocket && receiverEntity?.email && !isSelfMessage) {
       const mailSent = await sendMail(
         receiverEntity.email,
         `New message from ${senderName}`,

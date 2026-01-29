@@ -106,7 +106,10 @@ const getNotification = async (req, res) => {
   try {
     const { userId } = req.user;
     const notifications = await Notification.find({
-      $or: [{ userId }, { userId: null }],
+      $or: [
+        { userId },
+        { userId: null, dismissedBy: { $ne: userId } },
+      ],
     }).sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, notifications });
@@ -116,4 +119,24 @@ const getNotification = async (req, res) => {
   }
 };
 
-module.exports = { sendNotification, getNotification };
+const clearAllNotifications = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "Missing userId" });
+    }
+
+    await Notification.deleteMany({ userId });
+    await Notification.updateMany(
+      { userId: null },
+      { $addToSet: { dismissedBy: userId } }
+    );
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Error clearing notifications:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+module.exports = { sendNotification, getNotification, clearAllNotifications };

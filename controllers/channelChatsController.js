@@ -4,7 +4,8 @@ const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const mongoose = require("mongoose");
-const { getIo } = require("../utils/socket");
+const { getIo, onlineUsers } = require("../utils/socket");
+const sendMail = require("../services/sendMail");
 
 const resolveUserEntity = async (id) => {
   if (!id) return null;
@@ -90,6 +91,8 @@ const sendChannelMessage = async (req, res) => {
     const channel = await Channel.findById(channelId);
     const channelName = channel ? channel.name : "Unknown Channel";
     const io = getIo();
+    const senderEntity = await resolveUserEntity(sender);
+    const senderName = senderEntity?.name || "Unknown Sender";
 
     io.to(channelId).emit("new-channel-message", newMessage);
     io.to(channelId).emit("receive-notification", {
@@ -98,6 +101,27 @@ const sendChannelMessage = async (req, res) => {
       description: `You have a new message in channel ${channelName}`,
       timestamp: new Date(),
     });
+
+    if (channel?.members?.length) {
+      const memberIds = channel.members.map((id) => id?.toString());
+      const uniqueMembers = [...new Set(memberIds)];
+
+      const offlineRecipients = uniqueMembers.filter(
+        (memberId) => memberId && memberId !== sender?.toString() && !onlineUsers.get(memberId)
+      );
+
+      await Promise.all(
+        offlineRecipients.map(async (memberId) => {
+          const member = await resolveUserEntity(memberId);
+          if (!member?.email) return;
+          await sendMail(
+            member.email,
+            `New message in ${channelName}`,
+            `${senderName} sent a message in ${channelName}: ${message}`
+          );
+        })
+      );
+    }
 
     res.status(200).json({ success: true, message: "Message sent successfully.", data: newMessage });
   } catch (error) {

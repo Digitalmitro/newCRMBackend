@@ -103,6 +103,16 @@ const getAllConcerns = async (req, res) => {
   }
 };
 
+const getPendingConcernsCount = async (req, res) => {
+  try {
+    const pendingCount = await ConcernModel.countDocuments({ status: "Pending" });
+    res.status(200).json({ success: true, count: pendingCount });
+  } catch (error) {
+    console.error("Error fetching pending concerns count:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
 // 📌 Get Concerns by User ID
 const getConcernsByUser = async (req, res) => {
   try {
@@ -322,6 +332,7 @@ const rejectConcern = async (req, res) => {
 module.exports = {
   submitConcern,
   getAllConcerns,
+  getPendingConcernsCount,
   getConcernsByUser,
   updateConcernStatus,
   approveConcern,
