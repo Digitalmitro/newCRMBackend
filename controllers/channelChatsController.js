@@ -70,12 +70,15 @@ const sendChannelMessage = async (req, res) => {
         return res.status(400).json({ success: false, message: "Reply target not found." });
       }
       const replySender = await resolveUserEntity(replyDoc.sender);
+      const replySenderName = replyDoc.isSystem
+        ? replyDoc.systemLabel || "System"
+        : replySender?.name || "User";
       replyMeta = {
         replyTo: replyDoc._id,
         replyPreview: {
           message: buildReplyPreview(replyDoc.message),
           sender: replyDoc.sender,
-          senderName: replySender?.name || "User",
+          senderName: replySenderName,
         },
       };
     }

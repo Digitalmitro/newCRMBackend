@@ -6,6 +6,7 @@ const { initSocket } = require('./utils/socket');
 const connectDB = require('./config/db');
 const {startCronJobs} = require('./utils/autoUpdateAttandance')
 const {startScheduler} = require("./utils/callbackScheduler");
+const { startTaskOverdueScheduler } = require("./utils/taskOverdueScheduler");
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const authRoutes = require("./routes/authRoutes");
 const callbackRoutes = require("./routes/callbackRoutes");
@@ -29,6 +30,7 @@ initSocket(server);
 // startCronJobs(48,15)
 startScheduler(0,20)
 startScheduler(17,18)
+startTaskOverdueScheduler();
 app.use(express.json());
 app.use(
   cors({
