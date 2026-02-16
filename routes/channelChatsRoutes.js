@@ -4,6 +4,7 @@ const {
   getChannelTasks,
   createChannelTask,
   updateChannelTask,
+  deleteChannelTask,
   addTaskComment,
 } = require("../controllers/channelTaskController");
 const { authMiddleware } = require("../middlewares/authMiddleware");
@@ -16,6 +17,7 @@ router.post("/send", sendChannelMessage);
 router.get("/:channelId/tasks", authMiddleware, getChannelTasks);
 router.post("/:channelId/tasks", authMiddleware, createChannelTask);
 router.patch("/:channelId/tasks/:taskId", authMiddleware, updateChannelTask);
+router.delete("/:channelId/tasks/:taskId", authMiddleware, deleteChannelTask);
 router.post("/:channelId/tasks/:taskId/comments", authMiddleware, addTaskComment);
 
 // ✅ Get all messages from a channel

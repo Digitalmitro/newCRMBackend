@@ -624,6 +624,10 @@ const buildTaskQuery = ({
   return query;
 };
 
+const isVersionConflictError = (error) =>
+  error?.name === "VersionError" ||
+  error instanceof mongoose.Error.VersionError;
+
 const checkAndMarkOverdueTasks = async (channelId = null) => {
   const now = Date.now();
   const query = {
@@ -660,6 +664,8 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
 
     let hasChanges = false;
     let emittedType = "TASK_UPDATED";
+    const queuedNotifications = [];
+    const queuedSystemMessages = [];
 
     if (task.reminderRules?.enabled && now < deadlineMs) {
       const reminderMinutes = normalizeReminderMinutes(task.reminderRules.minutesBefore);
@@ -672,7 +678,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
         if (now < reminderTriggerAt || sentReminderSet.has(minutesBefore)) continue;
 
         if (task.assignedTo) {
-          await emitUserNotifications({
+          queuedNotifications.push({
             userIds: [task.assignedTo],
             title: channel.name || "Channel",
             description: `Reminder: Task ${task.taskNumber} is due in ${formatReminderTimeLabel(minutesBefore)}.`,
@@ -680,8 +686,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
             sender: channel._id,
           });
         }
-        await postSystemMessage(
-          channel._id,
+        queuedSystemMessages.push(
           `Reminder: Task ${task.taskNumber} is due in ${formatReminderTimeLabel(minutesBefore)}.`
         );
         task.activityLog.push(
@@ -709,7 +714,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
       const adminIds = adminCache[taskChannelId];
 
       if (adminIds.length > 0) {
-        await emitUserNotifications({
+        queuedNotifications.push({
           userIds: adminIds,
           title: channel.name || "Channel",
           description: `Task ${task.taskNumber} is overdue.`,
@@ -718,7 +723,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
         });
       }
 
-      await postSystemMessage(channel._id, `Task ${task.taskNumber} is now overdue.`);
+      queuedSystemMessages.push(`Task ${task.taskNumber} is now overdue.`);
       task.overdueNotified = true;
       task.activityLog.push(
         buildTaskActivity({
@@ -747,7 +752,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
       }
       const adminIds = adminCache[taskChannelId];
       if (adminIds.length > 0) {
-        await emitUserNotifications({
+        queuedNotifications.push({
           userIds: adminIds,
           title: channel.name || "Channel",
           description: `Task ${task.taskNumber} has been escalated (${escalationDelayMinutes} minutes overdue).`,
@@ -756,10 +761,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
         });
       }
 
-      await postSystemMessage(
-        channel._id,
-        `Task ${task.taskNumber} has been escalated to admins.`
-      );
+      queuedSystemMessages.push(`Task ${task.taskNumber} has been escalated to admins.`);
       task.escalationRules.escalatedAt = new Date();
       task.activityLog.push(
         buildTaskActivity({
@@ -779,7 +781,31 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
 
     if (!hasChanges) continue;
 
-    await task.save();
+    try {
+      await task.save();
+    } catch (error) {
+      if (isVersionConflictError(error)) {
+        continue;
+      }
+      throw error;
+    }
+
+    for (const notificationPayload of queuedNotifications) {
+      try {
+        await emitUserNotifications(notificationPayload);
+      } catch (error) {
+        console.error("Failed to send queued task notification:", error);
+      }
+    }
+
+    for (const systemMessage of queuedSystemMessages) {
+      try {
+        await postSystemMessage(channel._id, systemMessage);
+      } catch (error) {
+        console.error("Failed to post queued task system message:", error);
+      }
+    }
+
     getIo().to(taskChannelId).emit("task-updated", {
       type: emittedType,
       channelId: taskChannelId,
@@ -793,6 +819,15 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
   return processedAlerts;
 };
 
+const runTaskMaintenanceSafely = async (channelId = null) => {
+  try {
+    return await checkAndMarkOverdueTasks(channelId);
+  } catch (error) {
+    console.error("Task maintenance skipped due to runtime error:", error);
+    return 0;
+  }
+};
+
 const getChannelTasks = async (req, res) => {
   try {
     const { channelId } = req.params;
@@ -803,7 +838,7 @@ const getChannelTasks = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized for this channel" });
     }
 
-    await checkAndMarkOverdueTasks(channelId);
+    await runTaskMaintenanceSafely(channelId);
 
     const {
       search = "",
@@ -1008,7 +1043,7 @@ const createChannelTask = async (req, res) => {
       });
     }
 
-    await checkAndMarkOverdueTasks(channel._id);
+    await runTaskMaintenanceSafely(channel._id);
     await triggerSoftRefresh("TASK");
     getIo().to(channel._id.toString()).emit("task-updated", {
       type: "TASK_CREATED",
@@ -1417,7 +1452,7 @@ const updateChannelTask = async (req, res) => {
       await task.save();
     }
 
-    await checkAndMarkOverdueTasks(channel._id);
+    await runTaskMaintenanceSafely(channel._id);
     await triggerSoftRefresh("TASK");
     getIo().to(channel._id.toString()).emit("task-updated", {
       type: "TASK_UPDATED",
@@ -1430,6 +1465,77 @@ const updateChannelTask = async (req, res) => {
   } catch (error) {
     console.error("Error updating channel task:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+const deleteChannelTask = async (req, res) => {
+  try {
+    const { channelId, taskId } = req.params;
+    const requesterId = req.user?.userId;
+
+    const channel = await getAccessibleChannel(channelId, requesterId);
+    if (!channel) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized for this channel" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid task id" });
+    }
+
+    const task = await ChannelTask.findOne({ _id: taskId, channelId: channel._id });
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    const actor = await resolveUserEntity(requesterId);
+    const actorName = actor?.name || "User";
+    const deletedTaskNumber = task.taskNumber;
+    const deletedTaskId = task._id;
+    const notificationTargets = [
+      ...new Set(
+        [task.assignedTo?.toString(), task.createdBy?.toString()].filter(
+          (id) => id && id !== requesterId?.toString()
+        )
+      ),
+    ];
+
+    await ChannelTask.deleteOne({ _id: task._id, channelId: channel._id });
+    await postSystemMessage(
+      channel._id,
+      `Task ${deletedTaskNumber} deleted by ${actorName}.`
+    );
+
+    if (notificationTargets.length > 0) {
+      await emitUserNotifications({
+        userIds: notificationTargets,
+        title: channel.name || "Channel",
+        description: `Task ${deletedTaskNumber} was deleted by ${actorName}.`,
+        type: "TASK_DELETED",
+        sender: channel._id,
+      });
+    }
+
+    await triggerSoftRefresh("TASK");
+    getIo().to(channel._id.toString()).emit("task-updated", {
+      type: "TASK_DELETED",
+      channelId: channel._id,
+      taskId: deletedTaskId,
+      taskNumber: deletedTaskNumber,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Task deleted successfully.",
+      taskId: deletedTaskId,
+      taskNumber: deletedTaskNumber,
+    });
+  } catch (error) {
+    console.error("Error deleting channel task:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -1526,6 +1632,7 @@ module.exports = {
   getChannelTasks,
   createChannelTask,
   updateChannelTask,
+  deleteChannelTask,
   addTaskComment,
   checkAndMarkOverdueTasks,
 };
