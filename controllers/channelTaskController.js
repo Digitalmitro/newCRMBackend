@@ -7,7 +7,8 @@ const Notification = require("../models/Notifications");
 const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
-const { getIo, onlineUsers, triggerSoftRefresh } = require("../utils/socket");
+const sendMail = require("../services/sendMail");
+const { getIo, emitToUser, isUserOnline, triggerSoftRefresh } = require("../utils/socket");
 
 const VALID_STATUSES = ["Assigned", "Acknowledged", "Completed"];
 const VALID_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -462,13 +463,15 @@ const emitUserNotifications = async ({
     }))
   );
 
-  const io = getIo();
   const deliveredIds = [];
+  const offlineRecipientIds = [];
   uniqueIds.forEach((userId, idx) => {
-    const socketId = onlineUsers.get(userId);
-    if (!socketId) return;
     const doc = notificationDocs[idx];
-    io.to(socketId).emit("receive-notification", {
+    if (!isUserOnline(userId)) {
+      offlineRecipientIds.push(userId);
+      return;
+    }
+    emitToUser(userId, "receive-notification", {
       title: doc.title,
       description: doc.description,
       type: doc.type,
@@ -482,6 +485,21 @@ const emitUserNotifications = async ({
     await Notification.updateMany(
       { _id: { $in: deliveredIds } },
       { $set: { isRead: true } }
+    );
+  }
+
+  if (offlineRecipientIds.length > 0) {
+    const recipientsMap = await resolveUsersMap(offlineRecipientIds);
+    await Promise.all(
+      offlineRecipientIds.map(async (userId) => {
+        const recipient = recipientsMap[userId];
+        if (!recipient?.email) return;
+        await sendMail(
+          recipient.email,
+          `Task update in ${title || "channel"}`,
+          description
+        );
+      })
     );
   }
 

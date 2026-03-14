@@ -4,7 +4,7 @@ const Callback = require("../models/CallBack");
 const Notification = require("../models/Notifications");
 const User = require("../models/User");
 const sendMail = require("../services/sendMail");
-const { getIo, onlineUsers } = require("../utils/socket");
+const { emitToUser, isUserOnline } = require("../utils/socket");
 
 const startScheduler = (minute, hour) => {
   schedule.scheduleJob({ minute, hour, tz: "Asia/Kolkata" }, async () => {
@@ -17,7 +17,6 @@ const startScheduler = (minute, hour) => {
         return;
       }
 
-      const io = getIo();
       for (const callback of callbacks) {
         const user = callback.user_id;
         if (!user) continue;
@@ -30,9 +29,8 @@ const startScheduler = (minute, hour) => {
         };
 
         // ✅ Check if user is online
-        const userSocket = onlineUsers.get(user._id.toString());
-        if (userSocket) {
-          io.to(userSocket).emit("receive-notification", notificationData);
+        if (isUserOnline(user._id)) {
+          emitToUser(user._id, "receive-notification", notificationData);
           console.log(`📢 Real-time notification sent to ${user.email}`);
         } else {
           // ✅ Save to Notification Collection for later

@@ -4,6 +4,21 @@ const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const sendMail = require("../services/sendMail");
+
+const normalizeMemberIds = (members = []) => [
+  ...new Set(
+    (Array.isArray(members) ? members : [])
+      .filter(Boolean)
+      .map((member) => member.toString())
+      .filter(Boolean)
+  ),
+];
+
+const mapResolvedMembers = (members = [], memberMap = {}) =>
+  normalizeMemberIds(members)
+    .map((memberId) => memberMap[memberId] || null)
+    .filter(Boolean);
+
 // Create a new channel
 exports.createChannel = async (req, res) => {
   try {
@@ -13,7 +28,7 @@ exports.createChannel = async (req, res) => {
     if (!name || !owner) {
       return res.status(400).json({ error: "Name and owner are required" });
     }
-    const uniqueMembers = Array.from(new Set([...members, owner]));
+    const uniqueMembers = normalizeMemberIds([...(Array.isArray(members) ? members : []), owner]);
     const newChannel = new Channel({
       name,
       description,
@@ -47,7 +62,7 @@ exports.updateChannel = async (req, res) => {
     if (name) channel.name = name;
     if (description) channel.description = description;
     if (members && Array.isArray(members)) {
-      const uniqueMembers = Array.from(new Set([...members, channel.owner.toString()]));
+      const uniqueMembers = normalizeMemberIds([...members, channel.owner?.toString()]);
       channel.members = uniqueMembers;
     }
 
@@ -78,8 +93,9 @@ exports.removeMember = async (req, res) => {
       return res.status(403).json({ error: "Only the channel owner can remove members" });
     }
 
-    const beforeCount = channel.members.length;
-    channel.members = channel.members.filter((m) => m.toString() !== memberId.toString());
+    const normalizedMembers = normalizeMemberIds(channel.members);
+    const beforeCount = normalizedMembers.length;
+    channel.members = normalizedMembers.filter((m) => m !== memberId.toString());
 
     if (channel.members.length === beforeCount) {
       return res.status(400).json({ error: "Member not found in channel" });
@@ -106,7 +122,7 @@ exports.getAllChannels = async (req, res) => {
     const channels = await Channel.find({ members: { $in: [userId] } }).lean(); // Use .lean() for better performance
 
     // Extract unique member IDs from all channels
-    const memberIds = [...new Set(channels.flatMap((channel) => channel.members))];
+    const memberIds = [...new Set(channels.flatMap((channel) => normalizeMemberIds(channel.members)))];
 
     // Fetch member details from dif  ferent schemas
     const users = await User.find({ _id: { $in: memberIds } }, "name email").lean();
@@ -125,7 +141,7 @@ exports.getAllChannels = async (req, res) => {
     // Attach full member details to each channel
     const channelsWithMembers = channels.map((channel) => ({
       ...channel,
-      members: channel.members.map((memberId) => memberMap[memberId?.toString()] || null), // Replace with full data
+      members: mapResolvedMembers(channel.members, memberMap),
     }));
 
     res.status(200).json(channelsWithMembers);
@@ -142,7 +158,7 @@ exports.getChannelById = async (req, res) => {
     if (!channel) return res.status(404).json({ error: "Channel not found" });
 
     // Extract unique member IDs
-    const memberIds = channel.members.map((id) => id.toString());
+    const memberIds = normalizeMemberIds(channel.members);
 
     // Fetch member details from different schemas
     const users = await User.find({ _id: { $in: memberIds } }, "name email").lean();
@@ -161,7 +177,7 @@ exports.getChannelById = async (req, res) => {
     // Attach full member details to the channel
     const channelWithMembers = {
       ...channel,
-      members: channel.members.map((memberId) => memberMap[memberId.toString()] || null),
+      members: mapResolvedMembers(channel.members, memberMap),
     };
 
     res.status(200).json(channelWithMembers);
@@ -272,7 +288,8 @@ exports.joinChannel = async (req, res) => {
     const memberId = user ? user?._id : client?._id;
 
     // Add user/client to the channel if they are not already a member
-    if (!channel.members.some(member => member.toString() === memberId.toString())) {
+    const normalizedMembers = normalizeMemberIds(channel.members);
+    if (!normalizedMembers.includes(memberId.toString())) {
       channel.members.push(memberId);
       await channel.save();
     }

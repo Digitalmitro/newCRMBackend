@@ -5,7 +5,7 @@ const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const Notification = require("../models/Notifications");
 const moment = require('moment-timezone');
-const { getIo, onlineUsers, triggerSoftRefresh } = require("../utils/socket");
+const { emitToUser, isUserOnline, triggerSoftRefresh } = require("../utils/socket");
 
 const resolveUserEntity = async (id) => {
   if (!id) return null;
@@ -57,22 +57,21 @@ const submitConcern = async (req, res) => {
           sender: user_id,
         }))
       );
-      const io = getIo();
       const deliveredIds = [];
       adminIds.forEach((id, idx) => {
-        const socketId = onlineUsers.get(id);
-        if (socketId) {
-          const doc = notificationDocs[idx];
-          io.to(socketId).emit("receive-notification", {
-            title: doc.title,
-            description: doc.description,
-            type: doc.type,
-            sender: doc.sender,
-            timestamp: doc.createdAt,
-          });
-          if (doc?._id) {
-            deliveredIds.push(doc._id);
-          }
+        if (!isUserOnline(id)) {
+          return;
+        }
+        const doc = notificationDocs[idx];
+        emitToUser(id, "receive-notification", {
+          title: doc.title,
+          description: doc.description,
+          type: doc.type,
+          sender: doc.sender,
+          timestamp: doc.createdAt,
+        });
+        if (doc?._id) {
+          deliveredIds.push(doc._id);
         }
       });
       if (deliveredIds.length > 0) {
@@ -255,10 +254,8 @@ const approveConcern = async (req, res) => {
       type: "CONCERN_STATUS",
       sender: null,
     });
-    const approveSocketId = onlineUsers.get(user_id.toString());
-    if (approveSocketId) {
-      const io = getIo();
-      io.to(approveSocketId).emit("receive-notification", {
+    if (isUserOnline(user_id)) {
+      emitToUser(user_id, "receive-notification", {
         title: approveNotification.title,
         description: approveNotification.description,
         type: approveNotification.type,
@@ -307,10 +304,8 @@ const rejectConcern = async (req, res) => {
       type: "CONCERN_STATUS",
       sender: null,
     });
-    const rejectSocketId = onlineUsers.get(user_id.toString());
-    if (rejectSocketId) {
-      const io = getIo();
-      io.to(rejectSocketId).emit("receive-notification", {
+    if (isUserOnline(user_id)) {
+      emitToUser(user_id, "receive-notification", {
         title: rejectNotification.title,
         description: rejectNotification.description,
         type: rejectNotification.type,

@@ -4,7 +4,7 @@ const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 
-const { getIo, onlineUsers } = require("../utils/socket");
+const { emitToUser, isUserOnline } = require("../utils/socket");
 const sendMail = require("../services/sendMail");
 
 // Resolve a user-like entity (employee/admin/client) by id so notifications use the correct sender name.
@@ -104,17 +104,14 @@ const sendMessage = async (req, res) => {
     });
     await newMessage.save();
 
-    const io = getIo(); // Get the initialized Socket.io instance
+    const receiverIsOnline = isUserOnline(receiver);
+    const senderIsOnline = isUserOnline(sender);
 
-    // Emit the message to both sender and receiver if online
-    const senderSocket = onlineUsers.get(sender);
-    const receiverSocket = onlineUsers.get(receiver);
-
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("new-message", newMessage);
-      io.to(receiverSocket).emit("updateUnread");
+    if (receiverIsOnline) {
+      emitToUser(receiver, "new-message", newMessage);
+      emitToUser(receiver, "updateUnread");
       if (!isSelfMessage) {
-        io.to(receiverSocket).emit("receive-notification", {
+        emitToUser(receiver, "receive-notification", {
           title: `${senderName} sent a message`,
           description: message,
           sender,
@@ -125,12 +122,17 @@ const sendMessage = async (req, res) => {
       }
     }
 
-    if (senderSocket) {
-      io.to(senderSocket).emit("new-message", newMessage);
-      io.to(senderSocket).emit("updateUnread");
+    if (isSelfMessage) {
+      if (senderIsOnline) {
+        emitToUser(sender, "new-message", newMessage);
+        emitToUser(sender, "updateUnread");
+      }
+    } else if (senderIsOnline) {
+      emitToUser(sender, "new-message", newMessage);
+      emitToUser(sender, "updateUnread");
     }
 
-    if (!receiverSocket && receiverEntity?.email && !isSelfMessage) {
+    if (!receiverIsOnline && receiverEntity?.email && !isSelfMessage) {
       const mailSent = await sendMail(
         receiverEntity.email,
         `New message from ${senderName}`,

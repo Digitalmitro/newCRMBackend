@@ -4,7 +4,7 @@ const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const mongoose = require("mongoose");
-const { getIo, onlineUsers } = require("../utils/socket");
+const { getIo, isUserOnline } = require("../utils/socket");
 const sendMail = require("../services/sendMail");
 
 const resolveUserEntity = async (id) => {
@@ -110,7 +110,10 @@ const sendChannelMessage = async (req, res) => {
       const uniqueMembers = [...new Set(memberIds)];
 
       const offlineRecipients = uniqueMembers.filter(
-        (memberId) => memberId && memberId !== sender?.toString() && !onlineUsers.get(memberId)
+        (memberId) =>
+          memberId &&
+          memberId !== sender?.toString() &&
+          !isUserOnline(memberId)
       );
 
       await Promise.all(

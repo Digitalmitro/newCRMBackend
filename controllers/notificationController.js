@@ -1,5 +1,5 @@
 const Notification = require("../models/Notifications");
-const { getIo, onlineUsers } = require("../utils/socket");
+const { getIo, emitToUser, isUserOnline } = require("../utils/socket");
 
 const sendNotification = async (req, res) => {
   try {
@@ -72,19 +72,19 @@ const sendNotification = async (req, res) => {
 
     const deliveredIds = [];
     dedupedTargets.forEach((id, idx) => {
-      const socketId = onlineUsers.get(id?.toString());
-      if (socketId) {
-        const doc = notificationDocs[idx];
-        io.to(socketId).emit("receive-notification", {
-          title: doc.title,
-          description: doc.description,
-          type: doc.type,
-          sender: doc.sender,
-          timestamp: doc.createdAt,
-        });
-        if (doc?._id) {
-          deliveredIds.push(doc._id);
-        }
+      if (!isUserOnline(id?.toString())) {
+        return;
+      }
+      const doc = notificationDocs[idx];
+      emitToUser(id?.toString(), "receive-notification", {
+        title: doc.title,
+        description: doc.description,
+        type: doc.type,
+        sender: doc.sender,
+        timestamp: doc.createdAt,
+      });
+      if (doc?._id) {
+        deliveredIds.push(doc._id);
       }
     });
 
