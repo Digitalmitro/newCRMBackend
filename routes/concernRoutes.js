@@ -2,6 +2,7 @@ const express = require("express");
 const {
   submitConcern,
   getAllConcerns,
+  getPendingConcernsCount,
   getConcernsByUser,
   updateConcernStatus,
   approveConcern,
@@ -13,6 +14,7 @@ const router = express.Router();
 // Routes
 router.post("/submit", authMiddleware, submitConcern);
 router.get("/all", getAllConcerns);
+router.get("/pending-count", authMiddleware, getPendingConcernsCount);
 router.get("/user",authMiddleware, getConcernsByUser);
 router.put("/update/:concernId", updateConcernStatus);
 router.patch("/approve/:user_id/:concern_id",approveConcern);

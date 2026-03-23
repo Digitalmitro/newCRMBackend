@@ -5,6 +5,31 @@ const onlineUsers = new Map(); // Store connected users
 
 let io;
 
+const normalizeUserId = (userId) => (userId ? userId.toString() : null);
+
+const getUserSocketIds = (userId) => {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) return [];
+
+  const socketIds = onlineUsers.get(normalizedUserId);
+  if (!socketIds) return [];
+  if (socketIds instanceof Set) {
+    return [...socketIds];
+  }
+  return [socketIds].filter(Boolean);
+};
+
+const isUserOnline = (userId) => getUserSocketIds(userId).length > 0;
+
+const emitToUser = (userId, eventName, payload) => {
+  if (!io) return 0;
+  const socketIds = getUserSocketIds(userId);
+  socketIds.forEach((socketId) => {
+    io.to(socketId).emit(eventName, payload);
+  });
+  return socketIds.length;
+};
+
 const initSocket = (server) => {
   io = socketIo(server, {
     cors: {
@@ -28,8 +53,14 @@ const initSocket = (server) => {
         return next(new Error("Authentication error"));
       }
 
-      socket.userId = decoded.userId; // Attach userId to socket
-      onlineUsers.set(decoded.userId, socket.id); // Store user in online users map
+      const normalizedUserId = normalizeUserId(decoded.userId);
+      socket.userId = normalizedUserId;
+      const activeSockets = onlineUsers.get(normalizedUserId);
+      if (activeSockets instanceof Set) {
+        activeSockets.add(socket.id);
+      } else {
+        onlineUsers.set(normalizedUserId, new Set([socket.id]));
+      }
       // console.log(`✅ User connected: ${decoded.userId} | Socket ID: ${socket.id}`);
       next();
     });
@@ -54,8 +85,15 @@ const initSocket = (server) => {
     });
     socket.on("disconnect", () => {
       console.log(`⚠️ User disconnected: ${socket.userId}`);
-      onlineUsers.delete(socket.userId);
-      socket.emit("updateUserStatus", { userId: socket.userId, status: "offline" });
+      const activeSockets = onlineUsers.get(socket.userId);
+      if (activeSockets instanceof Set) {
+        activeSockets.delete(socket.id);
+        if (activeSockets.size === 0) {
+          onlineUsers.delete(socket.userId);
+        }
+      } else {
+        onlineUsers.delete(socket.userId);
+      }
     });
 
    
@@ -72,18 +110,25 @@ const getIo = () => {
 };
 
 const triggerSoftRefresh = (type, targetUserId = null) => {
-  const io = getIo();
+  const socketIoInstance = getIo();
 
   if (targetUserId) {
-    const socketId = onlineUsers.get(targetUserId);
-    if (socketId) {
-      io.to(socketId).emit("soft-refresh", { type });
+    const deliveredCount = emitToUser(targetUserId, "soft-refresh", { type });
+    if (deliveredCount > 0) {
       console.log(`📡 Soft refresh sent to user ${targetUserId} for type: ${type}`);
     }
   } else {
-    io.emit("soft-refresh", { type });
+    socketIoInstance.emit("soft-refresh", { type });
     console.log(`🌍 Broadcast soft refresh for type: ${type}`);
   }
 };
 
-module.exports = { initSocket, getIo, onlineUsers,triggerSoftRefresh };
+module.exports = {
+  initSocket,
+  getIo,
+  onlineUsers,
+  triggerSoftRefresh,
+  getUserSocketIds,
+  isUserOnline,
+  emitToUser,
+};

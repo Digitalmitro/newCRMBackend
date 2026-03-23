@@ -13,7 +13,10 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     if (!file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
     // ✅ Upload to Cloudinary
-    const fileUrl = await uploadToCloudinary(file.buffer, "chat_uploads");
+    const originalName = file.originalname || "file";
+    const fileUrl = await uploadToCloudinary(file.buffer, originalName, "chat_uploads");
+    const separator = fileUrl.includes("?") ? "&" : "?";
+    const fileUrlWithName = `${fileUrl}${separator}filename=${encodeURIComponent(originalName)}`;
 
     // ✅ Emit real-time notification
     // const io = getIo();
@@ -26,7 +29,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     //   });
     // }
 
-    return res.json({ success: true, fileUrl });
+    return res.json({ success: true, fileUrl: fileUrlWithName, originalName });
   } catch (error) {
     console.error("File Upload Error:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });

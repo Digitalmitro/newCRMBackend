@@ -18,13 +18,25 @@ const generateToken = (userId, name) => {
 
 exports.signup = async (req, res) => {
   try {
-    const { name, email, phone, password, type } = req.body;
+    const { name, email, phone, password, type, shift, employeeType } = req.body;
+    const shiftValue = shift || type;
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
       return res.status(400).json({ message: "Email already in use" });
 
-    const user = new User({ name, email, phone, password, type });
+    if (!shiftValue) {
+      return res.status(400).json({ message: "Shift is required" });
+    }
+
+    const user = new User({
+      name,
+      email,
+      phone,
+      password,
+      type: shiftValue,
+      employeeType: employeeType || "Full-Time",
+    });
     await user.save();
 
     res.status(201).json({ message: "User created successfully" });
@@ -35,13 +47,25 @@ exports.signup = async (req, res) => {
 
 exports.createUserByAdmin = async (req, res) => {
   try {
-    const { name, email, phone, password, type } = req.body;
-    console.log({ name, email, phone, password, type })
+    const { name, email, phone, password, type, shift, employeeType } = req.body;
+    const shiftValue = shift || type;
+    console.log({ name, email, phone, password, type, shift, employeeType })
     // Only admin can create users
     // const admin = await RegisteradminModal.findById(req.user._id);
     // if (admin.type !== "Admin") return res.status(403).json({ message: "Access denied" });
 
-    const user = new User({ name, email, phone, password, type });
+    if (!shiftValue) {
+      return res.status(400).json({ message: "Shift is required" });
+    }
+
+    const user = new User({
+      name,
+      email,
+      phone,
+      password,
+      type: shiftValue,
+      employeeType: employeeType || "Full-Time",
+    });
     await user.save();
 
     res.status(201).json({ message: "User created by admin" });
@@ -87,7 +111,7 @@ exports.getUserName = async (req, res) => {
 // Admin Signup
 exports.adminSignup = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, type } = req.body;
 
     // Check if admin already exists
     const existingAdmin = await RegisteradminModal.findOne({ email });
@@ -104,6 +128,7 @@ exports.adminSignup = async (req, res) => {
       name,
       email,
       phone,
+      type,
       password: hashedPassword,
     });
 
@@ -229,6 +254,75 @@ exports.verifyAdminOtp = async (req, res) => {
   }
 };
 
+exports.getAdminProfile = async (req, res) => {
+  try {
+    const adminId = req.user?.userId;
+    if (!adminId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const admin = await RegisteradminModal.findById(adminId).select(
+      "name email phone type"
+    );
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    res.status(200).json({ success: true, admin });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+exports.updateAdminProfile = async (req, res) => {
+  try {
+    const adminId = req.user?.userId;
+    const { name, email, phone, password } = req.body;
+    if (!adminId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const admin = await RegisteradminModal.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    if (email && email !== admin.email) {
+      const exists = await RegisteradminModal.findOne({
+        email,
+        _id: { $ne: adminId },
+      });
+      if (exists) {
+        return res.status(400).json({ message: "Email already in use" });
+      }
+      admin.email = email;
+    }
+
+    if (name) admin.name = name;
+    if (phone) admin.phone = phone;
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      admin.password = await bcrypt.hash(password, salt);
+    }
+
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      admin: {
+        _id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        type: admin.type,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 //admin use api
 // 🔹 1. Get All Users
 exports.getAllUsers = async (req, res) => {
@@ -294,7 +388,8 @@ exports.getUserById = async (req, res) => {
 // 🔹 3. Update User
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, phone, type } = req.body;
+    const { name, email, phone, type, shift, employeeType } = req.body;
+    const shiftValue = shift || type;
     const user = await User.findById(req.params.id);
 
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -302,7 +397,10 @@ exports.updateUser = async (req, res) => {
     user.name = name || user.name;
     user.email = email || user.email;
     user.phone = phone || user.phone;
-    user.type = type || user.type;
+    user.type = shiftValue || user.type;
+    if (employeeType) {
+      user.employeeType = employeeType;
+    }
 
     const updatedUser = await user.save();
     res.json(updatedUser);

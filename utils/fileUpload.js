@@ -14,12 +14,15 @@ cloudinary.config({
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ✅ Function to Upload to Cloudinary
-const uploadToCloudinary = (fileBuffer, folder = "uploads") => {
+const uploadToCloudinary = (fileBuffer, originalName, folder = "uploads") => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       { 
         folder,
         resource_type: "auto",
+        use_filename: true,
+        unique_filename: false,
+        filename_override: originalName || "file",
         chunk_size: 6 * 1024 * 1024, // Upload in 6MB chunks
         timeout: 60000, // Increase timeout
         max_bytes: 50 * 1024 * 1024 // Increase file size limit to 50MB

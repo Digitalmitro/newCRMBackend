@@ -3,20 +3,20 @@ const Notification = require("../models/Notifications");
 
 const sendMissedNotifications = async (userId) => {
   try {
-    const { getIo, onlineUsers } = require("../utils/socket");
-    const io = getIo();
-    const userSocket = onlineUsers.get(userId);
+    const { emitToUser, isUserOnline } = require("../utils/socket");
 
-    if (!userSocket) return;
+    if (!isUserOnline(userId)) return;
 
     // ✅ Fetch unread notifications
     const unreadNotifications = await Notification.find({ userId, isRead: false });
      if(!unreadNotifications) return 
     // ✅ Send them via Socket.io
     unreadNotifications.forEach((notification) => {
-      io.to(userSocket).emit("receive-notification", {
+      emitToUser(userId, "receive-notification", {
         title: notification.title,
         description: notification.description,
+        type: notification.type,
+        sender: notification.sender,
         timestamp: notification.createdAt,
       });
     });
