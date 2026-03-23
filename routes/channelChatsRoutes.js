@@ -1,5 +1,9 @@
 const express = require("express");
-const { sendChannelMessage, getChannelMessages } = require("../controllers/channelChatsController");
+const {
+  sendChannelMessage,
+  getChannelMessages,
+  markChannelMessagesAsRead,
+} = require("../controllers/channelChatsController");
 const {
   getChannelTasks,
   createChannelTask,
@@ -13,6 +17,7 @@ const router = express.Router();
 
 // ✅ Send a message in a channel
 router.post("/send", sendChannelMessage);
+router.post("/:channelId/read", authMiddleware, markChannelMessagesAsRead);
 
 router.get("/:channelId/tasks", authMiddleware, getChannelTasks);
 router.post("/:channelId/tasks", authMiddleware, createChannelTask);

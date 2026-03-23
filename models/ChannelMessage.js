@@ -5,6 +5,7 @@ const ChannelMessageSchema = new mongoose.Schema({
     isSystem: { type: Boolean, default: false },
     systemLabel: { type: String, default: null },
     message: { type: String, required: true },
+    seenBy: [{ type: mongoose.Schema.Types.ObjectId, default: [] }],
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: "ChannelMessage", default: null },
     replyPreview: {
       message: { type: String },

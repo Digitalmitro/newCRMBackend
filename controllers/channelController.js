@@ -3,6 +3,7 @@ const ChannelInvite = require("../models/ChannelInvite");
 const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
+const ChannelMessage = require("../models/ChannelMessage");
 const sendMail = require("../services/sendMail");
 
 const normalizeMemberIds = (members = []) => [
@@ -138,11 +139,36 @@ exports.getAllChannels = async (req, res) => {
       memberMap[member._id.toString()] = member;
     });
 
-    // Attach full member details to each channel
-    const channelsWithMembers = channels.map((channel) => ({
-      ...channel,
-      members: mapResolvedMembers(channel.members, memberMap),
-    }));
+    // Attach full member details and unread stats to each channel
+    const channelsWithMembers = await Promise.all(
+      channels.map(async (channel) => {
+        const [unreadMessages, lastMessage] = await Promise.all([
+          ChannelMessage.countDocuments({
+            channelId: channel._id,
+            sender: { $ne: userId },
+            seenBy: { $ne: userId },
+          }),
+          ChannelMessage.findOne({ channelId: channel._id })
+            .sort({ createdAt: -1 })
+            .select("createdAt")
+            .lean(),
+        ]);
+
+        return {
+          ...channel,
+          members: mapResolvedMembers(channel.members, memberMap),
+          unreadMessages,
+          lastMessageTime: lastMessage?.createdAt || channel.createdAt || null,
+        };
+      })
+    );
+
+    channelsWithMembers.sort((a, b) => {
+      if ((a.unreadMessages || 0) !== (b.unreadMessages || 0)) {
+        return (b.unreadMessages || 0) - (a.unreadMessages || 0);
+      }
+      return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0);
+    });
 
     res.status(200).json(channelsWithMembers);
   } catch (error) {

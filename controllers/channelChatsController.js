@@ -4,7 +4,7 @@ const User = require("../models/User");
 const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const mongoose = require("mongoose");
-const { getIo, isUserOnline } = require("../utils/socket");
+const { getIo, emitToUser, isUserOnline } = require("../utils/socket");
 const sendMail = require("../services/sendMail");
 
 const resolveUserEntity = async (id) => {
@@ -87,6 +87,7 @@ const sendChannelMessage = async (req, res) => {
       sender,
       channelId,
       message,
+      seenBy: sender ? [sender] : [],
       ...(replyMeta || {}),
     });
     await newMessage.save();
@@ -108,6 +109,12 @@ const sendChannelMessage = async (req, res) => {
     if (channel?.members?.length) {
       const memberIds = channel.members.map((id) => id?.toString());
       const uniqueMembers = [...new Set(memberIds)];
+
+      uniqueMembers.forEach((memberId) => {
+        if (memberId && memberId !== sender?.toString()) {
+          emitToUser(memberId, "updateUnread");
+        }
+      });
 
       const offlineRecipients = uniqueMembers.filter(
         (memberId) =>
@@ -154,4 +161,32 @@ const getChannelMessages = async (req, res) => {
   }
 };
 
-module.exports = { sendChannelMessage, getChannelMessages };
+const markChannelMessagesAsRead = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.user.userId;
+
+    if (!channelId) {
+      return res.status(400).json({ success: false, message: "Channel ID is required." });
+    }
+
+    await ChannelMessage.updateMany(
+      {
+        channelId,
+        sender: { $ne: userId },
+        seenBy: { $ne: userId },
+      },
+      {
+        $addToSet: { seenBy: userId },
+      }
+    );
+
+    emitToUser(userId, "updateUnread");
+    res.status(200).json({ success: true, message: "Channel messages marked as read." });
+  } catch (error) {
+    console.error("Error marking channel messages as read:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+module.exports = { sendChannelMessage, getChannelMessages, markChannelMessagesAsRead };

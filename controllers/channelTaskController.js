@@ -705,7 +705,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
           });
         }
         queuedSystemMessages.push(
-          `Reminder: Task ${task.taskNumber} is due in ${formatReminderTimeLabel(minutesBefore)}.`
+          `Reminder: ${task.taskNumber} is due in ${formatReminderTimeLabel(minutesBefore)}.`
         );
         task.activityLog.push(
           buildTaskActivity({
@@ -741,7 +741,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
         });
       }
 
-      queuedSystemMessages.push(`Task ${task.taskNumber} is now overdue.`);
+      queuedSystemMessages.push(`${task.taskNumber} is now overdue.`);
       task.overdueNotified = true;
       task.activityLog.push(
         buildTaskActivity({
@@ -779,7 +779,7 @@ const checkAndMarkOverdueTasks = async (channelId = null) => {
         });
       }
 
-      queuedSystemMessages.push(`Task ${task.taskNumber} has been escalated to admins.`);
+      queuedSystemMessages.push(`${task.taskNumber} has been escalated to admins.`);
       task.escalationRules.escalatedAt = new Date();
       task.activityLog.push(
         buildTaskActivity({
@@ -1048,8 +1048,8 @@ const createChannelTask = async (req, res) => {
       activityLog: initialActivity,
     });
 
-    await postSystemMessage(channel._id, `Task ${taskNumber} created by ${creatorName}.`);
-    await postSystemMessage(channel._id, `Task ${taskNumber} assigned to ${assigneeName}.`);
+    await postSystemMessage(channel._id, `${taskNumber} created by ${creatorName}.`);
+    await postSystemMessage(channel._id, `${taskNumber} assigned to ${assigneeName}.`);
 
     if (assignedTo?.toString() !== requesterId?.toString()) {
       await emitUserNotifications({
@@ -1270,7 +1270,7 @@ const updateChannelTask = async (req, res) => {
     if (assignedTo !== undefined && previousAssignedTo !== task.assignedTo?.toString()) {
       await postSystemMessage(
         channel._id,
-        `Task ${task.taskNumber} assigned to ${assigneeName}.`
+        `${task.taskNumber} assigned to ${assigneeName}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1300,7 +1300,7 @@ const updateChannelTask = async (req, res) => {
     ) {
       await postSystemMessage(
         channel._id,
-        `Task ${task.taskNumber} deadline updated by ${actorName}.`
+        `${task.taskNumber} deadline updated by ${actorName}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1327,11 +1327,11 @@ const updateChannelTask = async (req, res) => {
             sender: channel._id,
           });
         }
-        await postSystemMessage(channel._id, `Task ${task.taskNumber} marked as completed.`);
+        await postSystemMessage(channel._id, `${task.taskNumber} marked as completed.`);
       } else {
         await postSystemMessage(
           channel._id,
-          `Task ${task.taskNumber} status updated to ${task.status.toLowerCase()}.`
+          `${task.taskNumber} status updated to ${task.status.toLowerCase()}.`
         );
       }
       pendingActivity.push(
@@ -1347,7 +1347,7 @@ const updateChannelTask = async (req, res) => {
     if (priority !== undefined && previousPriority !== task.priority) {
       await postSystemMessage(
         channel._id,
-        `Task ${task.taskNumber} priority updated to ${task.priority.toLowerCase()}.`
+        `${task.taskNumber} priority updated to ${task.priority.toLowerCase()}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1365,7 +1365,7 @@ const updateChannelTask = async (req, res) => {
     ) {
       await postSystemMessage(
         channel._id,
-        `Task ${task.taskNumber} tags updated by ${actorName}.`
+        `${task.taskNumber} tags updated by ${actorName}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1394,8 +1394,8 @@ const updateChannelTask = async (req, res) => {
       await postSystemMessage(
         channel._id,
         currentReminderRules.enabled
-          ? `Task ${task.taskNumber} reminder rules updated by ${actorName}.`
-          : `Task ${task.taskNumber} reminders disabled by ${actorName}.`
+          ? `${task.taskNumber} reminder rules updated by ${actorName}.`
+          : `${task.taskNumber} reminders disabled by ${actorName}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1426,8 +1426,8 @@ const updateChannelTask = async (req, res) => {
       await postSystemMessage(
         channel._id,
         currentEscalationRules.enabled
-          ? `Task ${task.taskNumber} escalation rules updated by ${actorName}.`
-          : `Task ${task.taskNumber} escalation disabled by ${actorName}.`
+          ? `${task.taskNumber} escalation rules updated by ${actorName}.`
+          : `${task.taskNumber} escalation disabled by ${actorName}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1453,7 +1453,7 @@ const updateChannelTask = async (req, res) => {
     ) {
       await postSystemMessage(
         channel._id,
-        `Task ${task.taskNumber} attachments updated by ${actorName}.`
+        `${task.taskNumber} attachments updated by ${actorName}.`
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1524,7 +1524,7 @@ const deleteChannelTask = async (req, res) => {
     await ChannelTask.deleteOne({ _id: task._id, channelId: channel._id });
     await postSystemMessage(
       channel._id,
-      `Task ${deletedTaskNumber} deleted by ${actorName}.`
+      `${deletedTaskNumber} deleted by ${actorName}.`
     );
 
     if (notificationTargets.length > 0) {
