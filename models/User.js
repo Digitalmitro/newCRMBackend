@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     phone: { type: Number, required: true },
     password: { type: String, required: true },
     type: { type: String, enum: ["Day", "Night"], required: true },
+    profilePicture: { type: String, default: null }, // URL or file path for profile picture
   },
   { timestamps: true }
 );

@@ -21,6 +21,7 @@ const registeradminSchema = mongoose.Schema(
       required: true,
     },
     type: { type: String, enum: ['Admin', 'SuperAdmin'], required: true },
+    profilePicture: { type: String, default: null }, // URL or file path for profile picture
     otp: {
       type: String,
     },

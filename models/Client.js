@@ -16,6 +16,7 @@ const clientSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    profilePicture: { type: String, default: null }, // URL or file path for profile picture
   },
   {
     timestamps: true,

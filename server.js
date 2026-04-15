@@ -19,6 +19,15 @@ const channelChatsRoutes = require("./routes/channelChatsRoutes");
 const notesRoutes = require("./routes/notepadRoutes")
 const fileUploadRoutes = require("./routes/fileUpload");
 const clientRoutes=require("./routes/clientRoutes")
+
+// NEW FEATURE ROUTES
+const messageEnhancementRoutes = require('./routes/messageEnhancementRoutes');
+const payslipRoutes = require('./routes/payslipRoutes');
+const channelReportRoutes = require('./routes/channelReportRoutes');
+const profilePictureRoutes = require('./routes/profilePictureRoutes');
+const channelManagementRoutes = require('./routes/channelManagementRoutes');
+const bulkInviteRoutes = require('./routes/bulkInviteRoutes');
+const employeeManagementRoutes = require('./routes/employeeManagementRoutes');
 dotenv.config();
 connectDB(); // Connect to MongoDB
 
@@ -51,6 +60,15 @@ app.use("/channels", channelChatsRoutes);
 app.use("/notepad",notesRoutes)
 app.use("/files", fileUploadRoutes);
 app.use("/client",clientRoutes)
+
+// ✅ NEW FEATURE ROUTES
+app.use("/message-enhancement", messageEnhancementRoutes);
+app.use("/payslips", payslipRoutes);
+app.use("/channel-reports", channelReportRoutes);
+app.use("/profile-picture", profilePictureRoutes);
+app.use("/channel-management", channelManagementRoutes);
+app.use("/invites", bulkInviteRoutes);
+app.use("/employees", employeeManagementRoutes);
 // ✅ Basic API health check
 app.get('/', (req, res) => {
   res.status(200).json({ message: "🚀 Welcome to CRM Server" });
