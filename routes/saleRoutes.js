@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { saleController }= require("../controllers/saleController");
+const saleController = require("../controllers/saleController");
 const { authMiddleware } = require("../middlewares/authMiddleware");
 
 // Create a new sale
