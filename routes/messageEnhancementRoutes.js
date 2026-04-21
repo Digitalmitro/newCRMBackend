@@ -9,7 +9,11 @@ const {
   getMessageHistory,
   getMentionSuggestions,
 } = require('../controllers/messageEnhancementController');
-
+console.log({
+  deleteDirectMessage: typeof deleteDirectMessage,
+  deleteChannelMessage: typeof deleteChannelMessage,
+  editDirectMessage: typeof editDirectMessage,
+});
 // Delete messages (2-hour window)
 router.delete('/direct/:messageId', authMiddleware, deleteDirectMessage);
 router.delete('/channel/:messageId', authMiddleware, deleteChannelMessage);
