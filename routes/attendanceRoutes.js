@@ -7,6 +7,13 @@ const { punchIn, punchOut, updateLeaveStatus, handlePunch, getUserAttendance, ge
 } = require("../controllers/attendanceController");
 const { authMiddleware } = require("../middlewares/authMiddleware");
 
+console.log({
+  punchIn: typeof punchIn,
+  punchOut: typeof punchOut,
+  handlePunch: typeof handlePunch,
+  authMiddleware: typeof authMiddleware
+});
+
 router.post("/punch-in", authMiddleware, punchIn);
 router.post("/punch-out", authMiddleware, punchOut);
 router.post("/punch", authMiddleware, handlePunch);
