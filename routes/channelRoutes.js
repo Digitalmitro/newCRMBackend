@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { channelController } = require("../controllers/channelController");
+const channelController  = require("../controllers/channelController");
 const {authMiddleware} = require("../middlewares/authMiddleware")
 
 // API Endpoints
