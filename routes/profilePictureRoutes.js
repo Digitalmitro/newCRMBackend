@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middlewares/authMiddleware');
-const upload = require('../utils/fileUpload');
+const { authMiddleware }= require('../middlewares/authMiddleware');
+const { upload }= require('../utils/fileUpload');
 const {
   uploadProfilePicture,
   getProfilePicture,
