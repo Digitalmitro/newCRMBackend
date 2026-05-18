@@ -21,6 +21,7 @@ const registeradminSchema = mongoose.Schema(
       required: true,
     },
     type: { type: String, enum: ['Admin', 'SuperAdmin'], required: true },
+    avatar: { type: String, default: "" },
     otp: {
       type: String,
     },
@@ -33,10 +34,8 @@ const registeradminSchema = mongoose.Schema(
 
 registeradminSchema.methods.generateAuthToken = async function () {
   try {
-    // const expirationTime = Math.floor(Date.now() / 1000) + (60 * 60);
- 
     let token = jwt.sign(
-      { name:this.name,userId: this._id, expiresIn: '30d' },
+      { name: this.name, userId: this._id, expiresIn: '30d' },
       process.env.JWT_SECRET
     );
     return token;
@@ -46,4 +45,4 @@ registeradminSchema.methods.generateAuthToken = async function () {
 };
 const RegisteradminModal = mongoose.model("Admin", registeradminSchema);
 
-module.exports =  RegisteradminModal ;
+module.exports = RegisteradminModal;

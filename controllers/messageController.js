@@ -7,7 +7,14 @@ const Client = require("../models/Client");
 const { emitToUser, isUserOnline } = require("../utils/socket");
 const sendMail = require("../services/sendMail");
 
-// Resolve a user-like entity (employee/admin/client) by id so notifications use the correct sender name.
+const EDIT_WINDOW_MS = 2 * 60 * 60 * 1000;
+const isWithinEditWindow = (createdAt) => {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created <= EDIT_WINDOW_MS;
+};
+
 const resolveUserEntity = async (id) => {
   if (!id) return null;
   return (
@@ -17,6 +24,7 @@ const resolveUserEntity = async (id) => {
   );
 };
 
+// Reply preview helpers (shared with channel chat) ----
 const isImageUrl = (value = "") => /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(value);
 const isVideoUrl = (value = "") => /\.(mp4|webm|ogg|mov|mkv)$/i.test(value);
 const isAudioUrl = (value = "") => /\.(mp3|wav|ogg|m4a|aac)$/i.test(value);
@@ -52,13 +60,22 @@ const buildReplyPreview = (value = "") => {
   return value.length > 80 ? `${value.slice(0, 80)}...` : value;
 };
 
-// Send a new message
+// ---- Send DM ----
 const sendMessage = async (req, res) => {
   try {
-    const { sender, receiver, message, replyTo } = req.body;
+    const { sender, receiver, message, replyTo, attachments: rawAttachments } = req.body;
 
-    if (!sender || !receiver || !message) {
-      return res.status(400).json({ success: false, message: "All fields are required." });
+    const attachments = Array.isArray(rawAttachments)
+      ? rawAttachments
+          .filter((u) => typeof u === "string" && u.trim().length > 0)
+          .slice(0, 20)
+      : [];
+
+    const text = typeof message === "string" ? message : "";
+    if (!sender || !receiver || (!text.trim() && attachments.length === 0)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Empty message." });
     }
 
     const senderEntity = await resolveUserEntity(sender);
@@ -72,7 +89,9 @@ const sendMessage = async (req, res) => {
     let replyMeta;
     if (replyTo) {
       if (!mongoose.Types.ObjectId.isValid(replyTo)) {
-        return res.status(400).json({ success: false, message: "Invalid replyTo message." });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid replyTo message." });
       }
       const replyDoc = await DirectMessage.findOne({
         _id: replyTo,
@@ -82,7 +101,9 @@ const sendMessage = async (req, res) => {
         ],
       });
       if (!replyDoc) {
-        return res.status(400).json({ success: false, message: "Reply target not found." });
+        return res
+          .status(400)
+          .json({ success: false, message: "Reply target not found." });
       }
       const replySender = await resolveUserEntity(replyDoc.sender);
       replyMeta = {
@@ -95,14 +116,21 @@ const sendMessage = async (req, res) => {
       };
     }
 
-    // Save message to database
     const newMessage = new DirectMessage({
       sender,
       receiver,
-      message,
+      message: text,
+      attachments,
       ...(replyMeta || {}),
     });
     await newMessage.save();
+
+    // Preview line — text if any, otherwise mention the attachment count.
+    const previewLine = text.trim()
+      ? text
+      : attachments.length
+      ? `[${attachments.length} attachment${attachments.length === 1 ? "" : "s"}]`
+      : "";
 
     const receiverIsOnline = isUserOnline(receiver);
     const senderIsOnline = isUserOnline(sender);
@@ -113,7 +141,7 @@ const sendMessage = async (req, res) => {
       if (!isSelfMessage) {
         emitToUser(receiver, "receive-notification", {
           title: `${senderName} sent a message`,
-          description: message,
+          description: previewLine,
           sender,
           name: senderName,
           type: "DM",
@@ -136,27 +164,29 @@ const sendMessage = async (req, res) => {
       const mailSent = await sendMail(
         receiverEntity.email,
         `New message from ${senderName}`,
-        message
+        previewLine
       );
-
       if (!mailSent) {
         console.warn("Failed to send offline message email.");
       }
     }
 
-    res.status(200).json({ success: true, message: "Message sent successfully.", data: newMessage });
+    res
+      .status(200)
+      .json({ success: true, message: "Message sent successfully.", data: newMessage });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
-// Retrieve messages between two users
+// ---- Get DMs between two users ----
 const getMessages = async (req, res) => {
   try {
     const { sender, receiver } = req.params;
-
     if (!sender || !receiver) {
-      return res.status(400).json({ success: false, message: "Sender and receiver are required." });
+      return res
+        .status(400)
+        .json({ success: false, message: "Sender and receiver are required." });
     }
 
     const messages = await DirectMessage.find({
@@ -172,48 +202,143 @@ const getMessages = async (req, res) => {
   }
 };
 
+// ---- Edit a DM (2-hour window, sender only) ----
+// PATCH /message/messages/:messageId
+const editMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { message: newText } = req.body;
+    const userId = req.user?.userId;
+
+    if (!newText || !newText.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Message content cannot be empty." });
+    }
+
+    const target = await DirectMessage.findById(messageId);
+    if (!target) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+    if (target.isDeleted) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Cannot edit a deleted message." });
+    }
+    if (String(target.sender) !== String(userId)) {
+      return res
+        .status(403)
+        .json({ success: false, message: "You can only edit your own messages." });
+    }
+    if (!isWithinEditWindow(target.createdAt)) {
+      return res.status(400).json({
+        success: false,
+        message: "Edit window expired (2 hours after sending).",
+      });
+    }
+
+    target.message = newText.trim();
+    target.editedAt = new Date();
+    await target.save();
+
+    // Push update to both sides
+    emitToUser(target.sender, "direct-message-updated", target);
+    emitToUser(target.receiver, "direct-message-updated", target);
+
+    return res.json({ success: true, data: target });
+  } catch (error) {
+    console.error("editMessage error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+// ---- Delete a DM for everyone (2-hour window, sender only) ----
+// DELETE /message/messages/:messageId
+const deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user?.userId;
+
+    const target = await DirectMessage.findById(messageId);
+    if (!target) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+    if (target.isDeleted) {
+      return res.json({ success: true, data: target });
+    }
+    if (String(target.sender) !== String(userId)) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "You can only delete your own messages.",
+        });
+    }
+    if (!isWithinEditWindow(target.createdAt)) {
+      return res.status(400).json({
+        success: false,
+        message: "Delete window expired (2 hours after sending).",
+      });
+    }
+
+    target.isDeleted = true;
+    target.deletedAt = new Date();
+    target.deletedBy = userId;
+    target.message = "This message was deleted";
+    await target.save();
+
+    emitToUser(target.sender, "direct-message-updated", target);
+    emitToUser(target.receiver, "direct-message-updated", target);
+
+    return res.json({ success: true, data: target });
+  } catch (error) {
+    console.error("deleteMessage error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+// ---- Recent chat users (carried over) ----
 const getRecentChatUsers = async (req, res) => {
   try {
-    const userId = req.user.userId; // Extract user ID from token
+    const userId = req.user.userId;
 
-    // Step 1: Find the latest message per user
     const lastMessages = await DirectMessage.aggregate([
       {
-        $match: {
-          $or: [{ sender: userId }, { receiver: userId }],
-        },
+        $match: { $or: [{ sender: userId }, { receiver: userId }] },
       },
-      { $sort: { createdAt: -1 } }, // Sort by latest message
+      { $sort: { createdAt: -1 } },
       {
         $group: {
           _id: {
             $cond: [{ $eq: ["$sender", userId] }, "$receiver", "$sender"],
-          }, // Group by the chat partner
+          },
           lastMessageTime: { $first: "$createdAt" },
           lastMessage: { $first: "$message" },
         },
       },
     ]);
 
-    // Convert aggregation result to a map
     const lastMessageMap = {};
     lastMessages.forEach((msg) => {
       lastMessageMap[msg._id.toString()] = msg;
     });
 
-    // Step 2: Get all users who have chatted with the current user
     const userIds = lastMessages.map((msg) => msg._id);
-    const users = await User.find({ _id: { $in: userIds } }, "name _id");
-    const adminUsers = await Admin.find({ _id: { $in: userIds } }, "name _id");
-    const clientUsers = await Client.find({ _id: { $in: userIds } }, "name _id");
+    const users = await User.find({ _id: { $in: userIds } }, "name _id avatar");
+    const adminUsers = await Admin.find({ _id: { $in: userIds } }, "name _id avatar");
+    const clientUsers = await Client.find({ _id: { $in: userIds } }, "name _id avatar");
     const allUsers = [...users, ...adminUsers, ...clientUsers];
 
-    // Get the current user (who is making the request)
-    let currentUser = await User.findById({ _id: userId }, "name _id");
-    if (!currentUser) currentUser = await Admin.findById({ _id: userId }, "name _id");
-    if (!currentUser) currentUser = await Client.findById({ _id: userId }, "name _id");
+    let currentUser = await User.findById({ _id: userId }, "name _id avatar");
+    if (!currentUser)
+      currentUser = await Admin.findById({ _id: userId }, "name _id avatar");
+    if (!currentUser)
+      currentUser = await Client.findById({ _id: userId }, "name _id avatar");
 
-    // Step 3: Get unseen message count for each user
     const usersWithDetails = await Promise.all(
       allUsers.map(async (user) => {
         const unseenCount = await DirectMessage.countDocuments({
@@ -225,6 +350,7 @@ const getRecentChatUsers = async (req, res) => {
         return {
           _id: user._id,
           name: user.name,
+          avatar: user.avatar || "",
           unseenMessages: unseenCount,
           lastMessageTime: lastMessageMap[user._id.toString()]?.lastMessageTime || null,
           lastMessage: lastMessageMap[user._id.toString()]?.lastMessage || "",
@@ -232,7 +358,6 @@ const getRecentChatUsers = async (req, res) => {
       })
     );
 
-    // Step 4: Sort users by lastMessageTime (latest first)
     usersWithDetails.sort((a, b) => {
       return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
     });
@@ -246,17 +371,24 @@ const getRecentChatUsers = async (req, res) => {
 
 const getAllUser = async (req, res) => {
   try {
-    const loggedInUserId = req.user.userId; // Get logged-in user ID
+    const loggedInUserId = req.user.userId;
 
-    // Fetch users from all collections (excluding the logged-in user)
-    const employeeUsers = await User.find({ _id: { $ne: loggedInUserId } }, "_id name");
-    const adminUsers = await Admin.find({ _id: { $ne: loggedInUserId } }, "_id name");
-    const clientUsers = await Client.find({ _id: { $ne: loggedInUserId } }, "_id name");
+    // Hide soft-deleted employees from the chat sidebar (feature #11).
+    const employeeUsers = await User.find(
+      { _id: { $ne: loggedInUserId }, isDeleted: { $ne: true } },
+      "_id name avatar"
+    );
+    const adminUsers = await Admin.find(
+      { _id: { $ne: loggedInUserId } },
+      "_id name avatar"
+    );
+    const clientUsers = await Client.find(
+      { _id: { $ne: loggedInUserId } },
+      "_id name avatar"
+    );
 
-    // Combine users into one array
     const allUsers = [...employeeUsers, ...adminUsers, ...clientUsers];
 
-    // Fetch unread messages and last message time for each user
     const usersWithChatData = await Promise.all(
       allUsers.map(async (user) => {
         const lastMessage = await DirectMessage.findOne({
@@ -264,7 +396,7 @@ const getAllUser = async (req, res) => {
             { sender: loggedInUserId, receiver: user._id },
             { sender: user._id, receiver: loggedInUserId },
           ],
-        }).sort({ createdAt: -1 }); // Get the latest message
+        }).sort({ createdAt: -1 });
 
         const unreadCount = await DirectMessage.countDocuments({
           sender: user._id,
@@ -275,20 +407,18 @@ const getAllUser = async (req, res) => {
         return {
           id: user._id,
           name: user.name,
+          avatar: user.avatar || "",
           unreadMessages: unreadCount,
           lastMessageTime: lastMessage ? lastMessage.createdAt : null,
         };
       })
     );
 
-    // Sort by:
-    // 1) Unread messages first (Descending)
-    // 2) Recent chat activity (Newest first)
     const sortedUsers = usersWithChatData.sort((a, b) => {
       if (a.unreadMessages !== b.unreadMessages) {
-        return b.unreadMessages - a.unreadMessages; // Unread messages first
+        return b.unreadMessages - a.unreadMessages;
       }
-      return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0); // Recent chats next
+      return new Date(b.lastMessageTime || 0) - new Date(a.lastMessageTime || 0);
     });
 
     res.json({ success: true, users: sortedUsers });
@@ -315,14 +445,15 @@ const readMessage = async (req, res) => {
   }
 };
 
-// Clear conversation between the authenticated user and another user
 const clearConversation = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { otherUserId } = req.body;
 
     if (!otherUserId) {
-      return res.status(400).json({ success: false, message: "otherUserId is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "otherUserId is required" });
     }
 
     const result = await DirectMessage.deleteMany({
@@ -339,4 +470,67 @@ const clearConversation = async (req, res) => {
   }
 };
 
-module.exports = { sendMessage, getMessages, getRecentChatUsers, getAllUser, readMessage, clearConversation };
+module.exports = {
+  sendMessage,
+  getMessages,
+  editMessage,
+  deleteMessage,
+  getRecentChatUsers,
+  getAllUser,
+  readMessage,
+  clearConversation,
+  togglePinDirectMessage,
+  getPinnedDirectMessages,
+};
+
+// PATCH /message/:messageId/pin — toggle pin on a DM
+async function togglePinDirectMessage(req, res) {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user?.userId;
+    const msg = await DirectMessage.findById(messageId);
+    if (!msg) return res.status(404).json({ success: false, message: "Message not found." });
+
+    const shouldPin = !msg.isPinned;
+    msg.isPinned = shouldPin;
+    msg.pinnedBy = shouldPin ? userId : null;
+    msg.pinnedAt = shouldPin ? new Date() : null;
+    await msg.save({ validateBeforeSave: false });
+
+    // Notify both participants.
+    const { emitToUser: emit } = require("../utils/socket");
+    [msg.sender?.toString(), msg.receiver?.toString()].filter(Boolean).forEach((uid) => {
+      emit(uid, "dm-message-pinned", {
+        messageId: msg._id,
+        isPinned: msg.isPinned,
+        pinnedBy: msg.pinnedBy,
+        pinnedAt: msg.pinnedAt,
+      });
+    });
+
+    return res.json({ success: true, isPinned: msg.isPinned, message: msg });
+  } catch (error) {
+    console.error("togglePinDirectMessage error:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+}
+
+// GET /message/pinned?with=<userId> — pinned messages in a DM conversation
+async function getPinnedDirectMessages(req, res) {
+  try {
+    const userId = req.user?.userId;
+    const otherId = req.query.with;
+    if (!otherId) return res.status(400).json({ success: false, message: "Missing 'with' param." });
+    const pinned = await DirectMessage.find({
+      isPinned: true,
+      $or: [
+        { sender: userId, receiver: otherId },
+        { sender: otherId, receiver: userId },
+      ],
+    }).sort({ pinnedAt: -1 }).lean();
+    return res.json({ success: true, pinned });
+  } catch (error) {
+    console.error("getPinnedDirectMessages error:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+}
