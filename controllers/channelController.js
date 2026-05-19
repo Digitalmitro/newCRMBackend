@@ -377,7 +377,7 @@ exports.inviteByEmail = async (req, res) => {
       ? `Hello,\n\nYou have been invited to join the channel "${channel.name}". \nClick the link below to accept the invitation:\n\n${inviteLink}\n\nBest regards,\nDigital Mitro Team`
       : `Hello,\n\nYou have been invited to join the channel "${channel.name}". However, it looks like you don't have an account yet.\n\nPlease sign up first by clicking the link below:\n\n${signupLink}\n\nAfter signing up, return to this email and click the invitation link to join the channel:\n\n${inviteLink}\n\nBest regards,\nDigital Mitro Team`;
 
-    await sendMail(email, subject, text);
+    await sendMail(email, subject, text, "notification", "employee");
 
     res.json({ message: "Invite sent successfully", inviteLink });
   } catch (err) {
@@ -443,7 +443,7 @@ exports.inviteByMultipleEmails = async (req, res) => {
             ? `Hello,\n\nYou have been invited to join the channel "${channel.name}". \nClick the link below to accept the invitation:\n\n${inviteLink}\n\nBest regards,\nDigital Mitro Team`
             : `Hello,\n\nYou have been invited to join the channel "${channel.name}". However, it looks like you don't have an account yet.\n\nPlease sign up first by clicking the link below:\n\n${signupLink}\n\nAfter signing up, return to this email and click the invitation link to join the channel:\n\n${inviteLink}\n\nBest regards,\nDigital Mitro Team`;
 
-          await sendMail(email, subject, text);
+          await sendMail(email, subject, text, "notification", "employee");
           return { email, status: "sent", inviteLink };
         } catch (err) {
           console.error(`Invite failed for ${email}:`, err?.message);

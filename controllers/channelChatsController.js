@@ -19,11 +19,13 @@ const isWithinEditWindow = (createdAt) => {
 // Resolve any of the three identity types so notifications use the correct sender name.
 const resolveUserEntity = async (id) => {
   if (!id) return null;
-  return (
-    (await User.findById(id)) ||
-    (await Admin.findById(id)) ||
-    (await Client.findById(id))
-  );
+  const user = await User.findById(id);
+  if (user) return { ...user.toObject(), _resolvedType: "employee" };
+  const admin = await Admin.findById(id);
+  if (admin) return { ...admin.toObject(), _resolvedType: "admin" };
+  const client = await Client.findById(id);
+  if (client) return { ...client.toObject(), _resolvedType: "client" };
+  return null;
 };
 
 // ---- Reply-preview helpers (carried over from previous build) ----
@@ -207,7 +209,9 @@ exports.sendChannelMessage = async (req, res) => {
           await sendMail(
             member.email,
             `New message in ${channelName}`,
-            `${senderName} sent a message in ${channelName}: ${previewLine}`
+            `${senderName} sent a message in ${channelName}: ${previewLine}`,
+            "notification",
+            member._resolvedType || "employee"
           );
         })
       );
@@ -243,7 +247,9 @@ exports.sendChannelMessage = async (req, res) => {
               await sendMail(
                 mentioned.email,
                 `${senderName} mentioned you in ${channelName}`,
-                `Hello ${mentioned.name || ""},\n\n${senderName} mentioned you in the channel "${channelName}":\n\n${mentionPreview}\n\nLog in to reply.`
+                `Hello ${mentioned.name || ""},\n\n${senderName} mentioned you in the channel "${channelName}":\n\n${mentionPreview}\n\nLog in to reply.`,
+                "notification",
+                mentioned._resolvedType || "employee"
               );
             } catch (mailError) {
               console.warn("mention email failed:", mailError?.message);

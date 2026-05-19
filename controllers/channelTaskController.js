@@ -388,9 +388,7 @@ const resolveUserEntity = async (id) => {
 };
 
 const resolveUsersMap = async (ids = []) => {
-  const objectIds = ids
-    .filter(Boolean)
-    .map((id) => id.toString());
+  const objectIds = ids.filter(Boolean).map((id) => id.toString());
   if (objectIds.length === 0) return {};
 
   const [users, admins, clients] = await Promise.all([
@@ -400,9 +398,9 @@ const resolveUsersMap = async (ids = []) => {
   ]);
 
   const map = {};
-  [...users, ...admins, ...clients].forEach((entity) => {
-    map[entity._id.toString()] = entity;
-  });
+  users.forEach((e) => { map[e._id.toString()] = { ...e, _resolvedType: "employee" }; });
+  admins.forEach((e) => { map[e._id.toString()] = { ...e, _resolvedType: "admin" }; });
+  clients.forEach((e) => { map[e._id.toString()] = { ...e, _resolvedType: "client" }; });
   return map;
 };
 
@@ -497,7 +495,9 @@ const emitUserNotifications = async ({
         await sendMail(
           recipient.email,
           `Task update in ${title || "channel"}`,
-          description
+          description,
+          "notification",
+          recipient._resolvedType || "employee"
         );
       })
     );

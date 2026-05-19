@@ -17,11 +17,13 @@ const isWithinEditWindow = (createdAt) => {
 
 const resolveUserEntity = async (id) => {
   if (!id) return null;
-  return (
-    (await User.findById(id)) ||
-    (await Admin.findById(id)) ||
-    (await Client.findById(id))
-  );
+  const user = await User.findById(id);
+  if (user) return { ...user.toObject(), _resolvedType: "employee" };
+  const admin = await Admin.findById(id);
+  if (admin) return { ...admin.toObject(), _resolvedType: "admin" };
+  const client = await Client.findById(id);
+  if (client) return { ...client.toObject(), _resolvedType: "client" };
+  return null;
 };
 
 // Reply preview helpers (shared with channel chat) ----
@@ -164,7 +166,9 @@ const sendMessage = async (req, res) => {
       const mailSent = await sendMail(
         receiverEntity.email,
         `New message from ${senderName}`,
-        previewLine
+        previewLine,
+        "notification",
+        receiverEntity._resolvedType || "employee"
       );
       if (!mailSent) {
         console.warn("Failed to send offline message email.");
