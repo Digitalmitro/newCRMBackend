@@ -263,7 +263,7 @@ exports.getAdminProfile = async (req, res) => {
     }
 
     const admin = await RegisteradminModal.findById(adminId).select(
-      "name email phone type avatar"
+      "name email phone type avatar role permissions"
     );
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
