@@ -24,6 +24,7 @@ const {
   deleteMonthlyReport,
 } = require("../controllers/channelReportController");
 const { authMiddleware } = require("../middlewares/authMiddleware");
+const { requirePermission } = require("../middlewares/permissionMiddleware");
 const { upload } = require("../utils/fileUpload");
 
 const router = express.Router();
@@ -53,9 +54,9 @@ router.get("/tasks/count", authMiddleware, getPendingTasksCount);
 
 // Tasks
 router.get("/:channelId/tasks", authMiddleware, getChannelTasks);
-router.post("/:channelId/tasks", authMiddleware, createChannelTask);
-router.patch("/:channelId/tasks/:taskId", authMiddleware, updateChannelTask);
-router.delete("/:channelId/tasks/:taskId", authMiddleware, deleteChannelTask);
+router.post("/:channelId/tasks", authMiddleware, requirePermission("task", "create"), createChannelTask);
+router.patch("/:channelId/tasks/:taskId", authMiddleware, requirePermission("taskManagement", "access"), updateChannelTask);
+router.delete("/:channelId/tasks/:taskId", authMiddleware, requirePermission("task", "delete"), deleteChannelTask);
 router.post(
   "/:channelId/tasks/:taskId/comments",
   authMiddleware,
@@ -66,6 +67,7 @@ router.post(
 router.post(
   "/:channelId/reports",
   authMiddleware,
+  requirePermission("report", "add"),
   upload.single("file"),
   uploadMonthlyReport
 );
@@ -73,6 +75,7 @@ router.get("/:channelId/reports", authMiddleware, listMonthlyReports);
 router.delete(
   "/:channelId/reports/:id",
   authMiddleware,
+  requirePermission("report", "delete"),
   deleteMonthlyReport
 );
 

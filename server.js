@@ -61,6 +61,7 @@ app.use("/client", clientRoutes);
 app.use("/profile", profileRoutes);   // feature #1 — avatars
 app.use("/payslips", payslipRoutes);  // feature #2 — payslips
 app.use("/salary-sheet", require("./routes/salarySheetRoutes")); // salary CSV
+app.use("/superadmin", require("./routes/superAdminRoutes")); // superadmin management
 
 // ✅ Serve uploaded files (reports etc.) from local disk (fix #7)
 // Files are stored at /uploads/reports/<filename> on the server.

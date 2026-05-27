@@ -239,6 +239,8 @@ exports.verifyAdminOtp = async (req, res) => {
           phone: adminFound.phone,
           _id: adminFound._id,
           avatar: adminFound.avatar || "",
+          role: adminFound.role || "admin",
+          permissions: adminFound.permissions || {},
         },
         success: true,
       });
