@@ -94,7 +94,15 @@ const submitConcern = async (req, res) => {
 // 📌 Get All Concerns
 const getAllConcerns = async (req, res) => {
   try {
-    const concerns = await ConcernModel.find().populate("user_id", "name email");
+    const { getAdminScope } = require("../utils/adminScope");
+    const scope = await getAdminScope(req.user?.userId);
+
+    let filter = {};
+    if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
+      filter.user_id = { $in: scope.allowedEmployees };
+    }
+
+    const concerns = await ConcernModel.find(filter).populate("user_id", "name email");
     res.status(200).json({ success: true, concerns });
   } catch (error) {
     console.error("Error fetching concerns:", error);

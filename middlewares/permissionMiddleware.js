@@ -13,6 +13,16 @@ const requirePermission = (resource, action) => async (req, res, next) => {
     // Superadmin bypasses all permission checks
     if (admin.role === "superadmin") return next();
 
+    // Safety fallback: if the admin has no permissions field set at all
+    // (old accounts created before this system), grant full access.
+    // This prevents locking out existing admins on first deploy.
+    const hasPermissionsSet = admin.permissions &&
+      Object.keys(admin.permissions).length > 0 &&
+      Object.values(admin.permissions).some(
+        (g) => Object.values(g).some((v) => v === true || v === false)
+      );
+    if (!hasPermissionsSet) return next();
+
     const allowed = admin.permissions?.[resource]?.[action];
     if (!allowed) {
       return res.status(403).json({

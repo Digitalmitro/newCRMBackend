@@ -221,8 +221,20 @@ exports.removeMember = async (req, res) => {
 exports.getAllChannels = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { getAdminScope } = require("../utils/adminScope");
+    const scope = await getAdminScope(userId);
 
-    const channels = await Channel.find({ members: { $in: [userId] } }).lean();
+    let channelFilter = { members: { $in: [userId] } };
+
+    // Regular admin with selective channel access
+    if (scope && !scope.isSuperAdmin && !scope.allChannels && scope.allowedChannels.length > 0) {
+      const mongoose = require("mongoose");
+      channelFilter = {
+        _id: { $in: scope.allowedChannels.map((id) => new mongoose.Types.ObjectId(id)) },
+      };
+    }
+
+    const channels = await Channel.find(channelFilter).lean();
 
     const memberIds = [
       ...new Set(channels.flatMap((channel) => normalizeMemberIds(channel.members))),

@@ -1,5 +1,56 @@
 const bcrypt = require("bcryptjs");
 const Admin = require("../models/Admin");
+const User = require("../models/User");
+const Channel = require("../models/Channels");
+
+// GET /superadmin/all-employees — for the employee picker
+exports.getAllEmployeesForPicker = async (req, res) => {
+  try {
+    const users = await User.find({ isDeleted: { $ne: true } })
+      .select("_id name email avatar")
+      .sort({ name: 1 })
+      .lean();
+    return res.json({ success: true, users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+// GET /superadmin/all-channels — for the channel picker
+exports.getAllChannelsForPicker = async (req, res) => {
+  try {
+    const channels = await Channel.find()
+      .select("_id name image")
+      .sort({ name: 1 })
+      .lean();
+    return res.json({ success: true, channels });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+// PATCH /superadmin/admins/:id/scope — update employee/channel scope
+exports.updateScope = async (req, res) => {
+  try {
+    const { allEmployees, allowedEmployees, allChannels, allowedChannels } = req.body;
+    const update = {};
+    if (allEmployees !== undefined) update.allEmployees = allEmployees;
+    if (allowedEmployees !== undefined) update.allowedEmployees = allowedEmployees;
+    if (allChannels !== undefined) update.allChannels = allChannels;
+    if (allowedChannels !== undefined) update.allowedChannels = allowedChannels;
+
+    const admin = await Admin.findOneAndUpdate(
+      { _id: req.params.id, role: { $ne: "superadmin" } },
+      { $set: update },
+      { new: true, select: "-password -otp -otpExpiration" }
+    );
+    if (!admin) return res.status(404).json({ success: false, message: "Admin not found." });
+    return res.json({ success: true, admin });
+  } catch (err) {
+    console.error("updateScope error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
 
 const DEFAULT_PERMISSIONS = {
   task:    { create: false, delete: false },

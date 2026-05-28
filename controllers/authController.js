@@ -106,8 +106,15 @@ exports.login = async (req, res) => {
 
 exports.getUserName = async (req, res) => {
   try {
-    // Hide soft-deleted users from name lookups.
-    const users = await User.find({ isDeleted: { $ne: true } }, "name _id avatar");
+    const { getAdminScope } = require("../utils/adminScope");
+    const scope = await getAdminScope(req.user?.userId);
+
+    let filter = { isDeleted: { $ne: true } };
+    if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
+      filter._id = { $in: scope.allowedEmployees };
+    }
+
+    const users = await User.find(filter, "name _id avatar");
     res.status(200).json({ success: true, users });
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -328,9 +335,17 @@ exports.updateAdminProfile = async (req, res) => {
 // ---- Admin user-management (existing list/get/update) ----
 exports.getAllUsers = async (req, res) => {
   try {
+    const { getAdminScope } = require("../utils/adminScope");
+    const scope = await getAdminScope(req.user?.userId);
+
     // Default: hide deleted employees. Admin can opt in via ?includeDeleted=1.
     const includeDeleted = req.query?.includeDeleted === "1";
-    const filter = includeDeleted ? {} : { isDeleted: { $ne: true } };
+    let filter = includeDeleted ? {} : { isDeleted: { $ne: true } };
+
+    // Scope filter — regular admins with selective access only see allowed employees
+    if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
+      filter._id = { $in: scope.allowedEmployees };
+    }
 
     const users = await User.find(filter)
       .select("-password")

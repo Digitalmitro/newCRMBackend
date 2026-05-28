@@ -16,12 +16,13 @@ const {
 } = require("../controllers/authController");
 
 const { authMiddleware } = require("../middlewares/authMiddleware");
+const { requirePermission } = require("../middlewares/permissionMiddleware");
 
 const router = express.Router();
 
 router.post("/signup", signup);
 router.post("/login", login);
-router.post("/admin/create-user", authMiddleware, createUserByAdmin);
+router.post("/admin/create-user", authMiddleware, requirePermission("employee", "create"), createUserByAdmin);
 router.get("/all", authMiddleware, getUserName);
 
 //for admin part
@@ -38,9 +39,9 @@ router.get("/", getAllUsers);
 router.get("/:id", getUserById);
 
 // 🔹 Update user
-router.put("/:id", updateUser);
+router.put("/:id", authMiddleware, requirePermission("employee", "edit"), updateUser);
 
 // 🔹 Delete user
-router.delete("/:id", deleteUser);
+router.delete("/:id", authMiddleware, requirePermission("employee", "delete"), deleteUser);
 
 module.exports = router;

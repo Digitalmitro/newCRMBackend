@@ -397,6 +397,15 @@ exports.getAttendanceListforadmin = async (req, res) => {
   const userId = req.params.id;
 
   try {
+    // Scope check — ensure this admin is allowed to view this employee
+    const { getAdminScope } = require("../utils/adminScope");
+    const scope = await getAdminScope(req.user?.userId);
+    if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
+      if (!scope.allowedEmployees.includes(userId.toString())) {
+        return res.status(403).json({ message: "Access denied for this employee." });
+      }
+    }
+
     let query = { user_id: userId };
 
     if (startDate && endDate) {
@@ -497,26 +506,28 @@ exports.getAllAttendanceforadmin = async (req, res) => {
 // Admin: Get today's attendance
 exports.getTodaysAttendanceforadmin = async (req, res) => {
   try {
+    const { getAdminScope } = require("../utils/adminScope");
+    const scope = await getAdminScope(req.user?.userId);
+
     const today = moment.tz("Asia/Kolkata").startOf("day").toDate();
     const tomorrow = moment.tz("Asia/Kolkata").endOf("day").toDate();
 
-    const todaysAttendance = await Attendance.find({
-      currentDate: { $gte: today, $lte: tomorrow },
-    })
+    let filter = { currentDate: { $gte: today, $lte: tomorrow } };
+    if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
+      filter.user_id = { $in: scope.allowedEmployees };
+    }
+
+    const todaysAttendance = await Attendance.find(filter)
       .populate("user_id")
       .select("-__v");
 
     if (!todaysAttendance.length)
-      return res
-        .status(404)
-        .json({ message: "No attendance records found for today" });
+      return res.status(404).json({ message: "No attendance records found for today" });
 
-    res
-      .status(200)
-      .json({
-        message: "Today's attendance data collected successfully",
-        data: todaysAttendance,
-      });
+    res.status(200).json({
+      message: "Today's attendance data collected successfully",
+      data: todaysAttendance,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });

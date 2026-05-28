@@ -12,7 +12,7 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get("/", authMiddleware, listSalarySheets);
-router.post("/upload", authMiddleware, requirePermission("salary", "upload"), upload.single("file"), uploadSalarySheet);
-router.delete("/:id", authMiddleware, requirePermission("salary", "revoke"), deleteSalarySheet);
+router.post("/upload", authMiddleware, requirePermission("salarySheet", "upload"), upload.single("file"), uploadSalarySheet);
+router.delete("/:id", authMiddleware, requirePermission("salarySheet", "revoke"), deleteSalarySheet);
 
 module.exports = router;
