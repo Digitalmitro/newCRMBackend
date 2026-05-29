@@ -180,8 +180,64 @@ const approveConcern = async (req, res) => {
       return res.status(400).json({ message: "Concern date is missing" });
     }
 
-    // ✅ Ensure ConcernDate is stored as `YYYY-MM-DDT00:00:00.000Z` (UTC)
     const concernDateUTC = moment(ConcernDate).tz("Asia/Kolkata").format("YYYY-MM-DD");
+
+    // ── LEAVE concern — create/update attendance with Leave status ──────────
+    const isLeave = concernType && concernType.toLowerCase().includes("leave");
+    if (isLeave) {
+      let attendance = await Attendance.findOne({ user_id, currentDate: concernDateUTC });
+      if (attendance) {
+        attendance.status = "Leave";
+        attendance.workStatus = "Leave";
+        attendance.leaveApproved = true;
+        attendance.leaveStatus = "Approved";
+        await attendance.save();
+      } else {
+        const user = await User.findById(user_id);
+        attendance = new Attendance({
+          user_id,
+          currentDate: concernDateUTC,
+          shiftType: user?.type || "Day",
+          status: "Leave",
+          workStatus: "Leave",
+          punchIn: null,
+          punchOut: null,
+          workingTime: 0,
+          isPunchedIn: false,
+          leaveApproved: true,
+          leaveStatus: "Approved",
+          ip: "System Generated",
+        });
+        await attendance.save();
+      }
+      concern.status = "Approved";
+      await concern.save();
+      const approveNotification = await Notification.create({
+        userId: user_id,
+        title: "Leave Approved",
+        description: `Your leave request for ${concern.ConcernDate} has been approved.`,
+        type: "CONCERN_STATUS",
+        sender: null,
+      });
+      if (isUserOnline(user_id)) {
+        emitToUser(user_id, "receive-notification", {
+          title: approveNotification.title,
+          description: approveNotification.description,
+          type: approveNotification.type,
+          sender: approveNotification.sender,
+          timestamp: approveNotification.createdAt,
+        });
+        await Notification.updateOne({ _id: approveNotification._id }, { $set: { isRead: true } });
+      }
+      await triggerSoftRefresh("Concern_Employee");
+      return res.status(200).json({
+        message: "Leave approved and attendance updated",
+        concern,
+        attendance,
+      });
+    }
+
+    // ── Regular punch correction concern ────────────────────────────────────
 
     let punchInTime = ActualPunchIn
       ? moment(ActualPunchIn, "YYYY-MM-DD hh:mm A").tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm")

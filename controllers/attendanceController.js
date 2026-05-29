@@ -307,14 +307,55 @@ exports.getUserAttendance = async (req, res) => {
   }
 
   try {
-    const userAttendance = await Attendance.find({
+    const existing = await Attendance.find({
       user_id: userId,
       currentDate: { $gte: startDate, $lte: endDate },
-    }).sort({ createdAt: -1 });
+    }).sort({ currentDate: 1 }).lean();
+
+    // Fill missing days with Absent / Week-Off up to today
+    const today = moment.tz("Asia/Kolkata").endOf("day");
+    const user = await User.findById(userId).select("type").lean();
+
+    const recordedDays = new Set(
+      existing.map((r) => moment.tz(r.currentDate, "Asia/Kolkata").format("YYYY-MM-DD"))
+    );
+
+    const rangeEndDate = moment.tz(endDate, "Asia/Kolkata").endOf("day");
+    const effectiveEnd = rangeEndDate.isAfter(today) ? today.clone() : rangeEndDate.clone();
+
+    const syntheticRows = [];
+    const cursor = moment.tz(startDate, "Asia/Kolkata").startOf("day");
+    while (cursor.isSameOrBefore(effectiveEnd, "day")) {
+      const dayStr = cursor.format("YYYY-MM-DD");
+      if (!recordedDays.has(dayStr)) {
+        const dow = cursor.day();
+        const isWeekend = dow === 0 || dow === 6;
+        syntheticRows.push({
+          _id: `synthetic_${userId}_${dayStr}`,
+          user_id: userId,
+          currentDate: cursor.clone().toDate(),
+          shiftType: user?.type || "Day",
+          status: isWeekend ? "Week-Off" : "Absent",
+          workStatus: isWeekend ? "Week-Off" : "Absent",
+          punchIn: null,
+          punchOut: null,
+          workingTime: 0,
+          isPunchedIn: false,
+          leaveApproved: false,
+          leaveStatus: null,
+          isSynthetic: true,
+        });
+      }
+      cursor.add(1, "day");
+    }
+
+    const combined = [...existing, ...syntheticRows].sort(
+      (a, b) => new Date(b.currentDate) - new Date(a.currentDate)
+    );
 
     res.status(200).json({
       message: `Attendance records from ${startDate} to ${endDate}`,
-      data: userAttendance,
+      data: combined,
     });
   } catch (error) {
     res.status(500).json({
@@ -397,7 +438,7 @@ exports.getAttendanceListforadmin = async (req, res) => {
   const userId = req.params.id;
 
   try {
-    // Scope check — ensure this admin is allowed to view this employee
+    // Scope check
     const { getAdminScope } = require("../utils/adminScope");
     const scope = await getAdminScope(req.user?.userId);
     if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
@@ -407,42 +448,77 @@ exports.getAttendanceListforadmin = async (req, res) => {
     }
 
     let query = { user_id: userId };
+    let rangeStart = null;
+    let rangeEnd = null;
 
     if (startDate && endDate) {
-      const start = moment.tz(startDate, "Asia/Kolkata").startOf("day").toDate();
-      const end = moment.tz(endDate, "Asia/Kolkata").endOf("day").toDate();
-      query.currentDate = { $gte: start, $lte: end };
+      rangeStart = moment.tz(startDate, "Asia/Kolkata").startOf("day");
+      rangeEnd   = moment.tz(endDate,   "Asia/Kolkata").endOf("day");
     } else if (startDate || endDate) {
-      const singleDate = startDate || endDate;
-      const start = moment.tz(singleDate, "Asia/Kolkata").startOf("day").toDate();
-      const end = moment.tz(singleDate, "Asia/Kolkata").endOf("day").toDate();
-      query.currentDate = { $gte: start, $lte: end };
+      const d = startDate || endDate;
+      rangeStart = moment.tz(d, "Asia/Kolkata").startOf("day");
+      rangeEnd   = moment.tz(d, "Asia/Kolkata").endOf("day");
     } else if (date) {
-      const specificDate = moment
-        .tz(date, "Asia/Kolkata")
-        .startOf("day")
-        .toDate();
-      const endOfDay = moment.tz(date, "Asia/Kolkata").endOf("day").toDate();
-      query.currentDate = { $gte: specificDate, $lte: endOfDay };
+      rangeStart = moment.tz(date, "Asia/Kolkata").startOf("day");
+      rangeEnd   = moment.tz(date, "Asia/Kolkata").endOf("day");
     } else if (month) {
       const resolvedYear = year || moment().tz("Asia/Kolkata").year();
-      const startOfMonth = moment
-        .tz({ year: resolvedYear, month: month - 1 }, "Asia/Kolkata")
-        .startOf("month")
-        .toDate();
-      const endOfMonth = moment
-        .tz({ year: resolvedYear, month: month - 1 }, "Asia/Kolkata")
-        .endOf("month")
-        .toDate();
-      query.currentDate = { $gte: startOfMonth, $lte: endOfMonth };
+      rangeStart = moment.tz({ year: resolvedYear, month: month - 1 }, "Asia/Kolkata").startOf("month");
+      rangeEnd   = moment.tz({ year: resolvedYear, month: month - 1 }, "Asia/Kolkata").endOf("month");
     }
 
-    const data = await Attendance.find(query)
-      .select("-__v")
-      .sort({ createdAt: -1 });
-    if (!data.length) return res.status(404).json({ message: "No Data Found" });
+    if (rangeStart && rangeEnd) {
+      query.currentDate = { $gte: rangeStart.toDate(), $lte: rangeEnd.toDate() };
+    }
 
-    res.status(200).json({ message: "Data Collected Successfully", data });
+    const existingData = await Attendance.find(query).select("-__v").sort({ currentDate: 1 }).lean();
+
+    // If no date range, just return existing records
+    if (!rangeStart || !rangeEnd) {
+      if (!existingData.length) return res.status(404).json({ message: "No Data Found" });
+      return res.status(200).json({ message: "Data Collected Successfully", data: existingData });
+    }
+
+    // Fill missing days up to today
+    const today = moment.tz("Asia/Kolkata").endOf("day");
+    const effectiveEnd = rangeEnd.isAfter(today) ? today.clone() : rangeEnd.clone();
+
+    const recordedDays = new Set(
+      existingData.map((r) => moment.tz(r.currentDate, "Asia/Kolkata").format("YYYY-MM-DD"))
+    );
+
+    const syntheticRows = [];
+    const cursor = rangeStart.clone().startOf("day");
+    while (cursor.isSameOrBefore(effectiveEnd, "day")) {
+      const dayStr = cursor.format("YYYY-MM-DD");
+      if (!recordedDays.has(dayStr)) {
+        const dow = cursor.day();
+        const isWeekend = dow === 0 || dow === 6;
+        syntheticRows.push({
+          _id: `synthetic_${userId}_${dayStr}`,
+          user_id: userId,
+          currentDate: cursor.clone().toDate(),
+          shiftType: "Day",
+          status: isWeekend ? "Week-Off" : "Absent",
+          workStatus: isWeekend ? "Week-Off" : "Absent",
+          punchIn: null,
+          punchOut: null,
+          workingTime: 0,
+          isPunchedIn: false,
+          leaveApproved: false,
+          leaveStatus: null,
+          isSynthetic: true,
+        });
+      }
+      cursor.add(1, "day");
+    }
+
+    const combined = [...existingData, ...syntheticRows].sort(
+      (a, b) => new Date(b.currentDate) - new Date(a.currentDate)
+    );
+
+    if (!combined.length) return res.status(404).json({ message: "No Data Found" });
+    res.status(200).json({ message: "Data Collected Successfully", data: combined });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
