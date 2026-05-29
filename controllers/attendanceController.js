@@ -511,22 +511,54 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
 
     const today = moment.tz("Asia/Kolkata").startOf("day").toDate();
     const tomorrow = moment.tz("Asia/Kolkata").endOf("day").toDate();
+    const todayMoment = moment.tz("Asia/Kolkata");
+    const dayOfWeek = todayMoment.day(); // 0=Sun, 6=Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-    let filter = { currentDate: { $gte: today, $lte: tomorrow } };
+    // Build employee filter based on scope
+    let employeeFilter = { isDeleted: { $ne: true } };
     if (scope && !scope.isSuperAdmin && !scope.allEmployees && scope.allowedEmployees.length > 0) {
-      filter.user_id = { $in: scope.allowedEmployees };
+      employeeFilter._id = { $in: scope.allowedEmployees };
     }
 
-    const todaysAttendance = await Attendance.find(filter)
-      .populate("user_id")
-      .select("-__v");
+    // Fetch all active employees + today's existing attendance records in parallel
+    const [allEmployees, existingRecords] = await Promise.all([
+      User.find(employeeFilter).select("_id name email avatar type").lean(),
+      Attendance.find({ currentDate: { $gte: today, $lte: tomorrow } })
+        .populate("user_id")
+        .select("-__v")
+        .lean(),
+    ]);
 
-    if (!todaysAttendance.length)
-      return res.status(404).json({ message: "No attendance records found for today" });
+    // Map existing records by user_id
+    const recordedIds = new Set(
+      existingRecords.map((r) => r.user_id?._id?.toString() || r.user_id?.toString())
+    );
+
+    // Build synthetic records for employees who didn't clock in
+    const syntheticRecords = allEmployees
+      .filter((emp) => !recordedIds.has(emp._id.toString()))
+      .map((emp) => ({
+        _id: `synthetic_${emp._id}`,
+        user_id: emp,
+        currentDate: today,
+        shiftType: emp.type || "Day",
+        status: isWeekend ? "Week-Off" : "Absent",
+        workStatus: isWeekend ? "Week-Off" : "Absent",
+        punchIn: null,
+        punchOut: null,
+        workingTime: 0,
+        isPunchedIn: false,
+        leaveApproved: false,
+        leaveStatus: null,
+        isSynthetic: true, // flag so frontend knows this is auto-generated
+      }));
+
+    const allRecords = [...existingRecords, ...syntheticRecords];
 
     res.status(200).json({
       message: "Today's attendance data collected successfully",
-      data: todaysAttendance,
+      data: allRecords,
     });
   } catch (error) {
     console.error(error);
