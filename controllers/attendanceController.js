@@ -310,7 +310,7 @@ exports.getUserAttendance = async (req, res) => {
     const existing = await Attendance.find({
       user_id: userId,
       currentDate: { $gte: startDate, $lte: endDate },
-    }).sort({ currentDate: 1 }).lean();
+    }).sort({ currentDate: -1 }).lean();
 
     // Fill missing days with Absent / Week-Off up to today
     const today = moment.tz("Asia/Kolkata").endOf("day");
