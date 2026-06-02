@@ -8,14 +8,15 @@ const requirePermission = (resource, action) => async (req, res, next) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const admin = await Admin.findById(userId).select("role permissions").lean();
-    if (!admin) return res.status(403).json({ success: false, message: "Not an admin." });
+
+    // Not an admin (employee or client) — let them through, no permission restrictions apply
+    if (!admin) return next();
 
     // Superadmin bypasses all permission checks
     if (admin.role === "superadmin") return next();
 
     // Safety fallback: if the admin has no permissions field set at all
     // (old accounts created before this system), grant full access.
-    // This prevents locking out existing admins on first deploy.
     const hasPermissionsSet = admin.permissions &&
       Object.keys(admin.permissions).length > 0 &&
       Object.values(admin.permissions).some(

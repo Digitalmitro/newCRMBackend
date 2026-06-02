@@ -7,6 +7,7 @@ const { triggerSoftRefresh } = require("../utils/socket");
 const { checkWeekendOrHoliday } = require("../utils/weekHoliday");
 const moment = require("moment");
 const moments = require("moment-timezone");
+const { getAttendanceDate, getTodayBounds, TIMEZONE } = require("../utils/attendanceDay");
 
 // Helper function to calculate working time in minutes
 const calculateWorkingTime = (punchIn, punchOut) => {
@@ -30,8 +31,8 @@ exports.punchIn = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const today = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
-    const punchInTime = moment().tz("Asia/Kolkata");
+    const today = getAttendanceDate(); // 5am cutoff — before 5am = previous day
+    const punchInTime = moment().tz(TIMEZONE);
 
     let attendance = await Attendance.findOne({
       user_id: userId,
@@ -101,10 +102,7 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    let today = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
-    if (user?.type === "Night") {
-      today = moment().tz("Asia/Kolkata").subtract(1, "day").format("YYYY-MM-DD");
-    }
+    let today = getAttendanceDate(); // 5am cutoff handles both Day and Night shifts
     const attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -159,7 +157,7 @@ exports.updateLeaveStatus = async (req, res) => {
     }
 
     // Check if attendance record exists
-    const today = moment().format("YYYY-MM-DD");
+    const today = getAttendanceDate(); // 5am cutoff
     const attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -201,7 +199,7 @@ exports.handlePunch = async (req, res) => {
   const { date, punchIn, punchOut, fix } = req.body; // Optional fix values
 
   try {
-    const today = date || moment().format("YYYY-MM-DD");
+    const today = date || getAttendanceDate(); // 5am cutoff
     let attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -285,7 +283,7 @@ exports.getUserAttendance = async (req, res) => {
   let startDate, endDate;
 
   if (range === "today") {
-    startDate = moment().format("YYYY-MM-DD");
+    startDate = getAttendanceDate(); // 5am cutoff
     endDate = startDate;
   } else if (range === "this_month") {
     startDate = moment().startOf("month").format("YYYY-MM-DD");
@@ -585,10 +583,10 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
     const { getAdminScope } = require("../utils/adminScope");
     const scope = await getAdminScope(req.user?.userId);
 
-    const today = moment.tz("Asia/Kolkata").startOf("day").toDate();
-    const tomorrow = moment.tz("Asia/Kolkata").endOf("day").toDate();
-    const todayMoment = moment.tz("Asia/Kolkata");
-    const dayOfWeek = todayMoment.day(); // 0=Sun, 6=Sat
+    const { start: today, end: tomorrow } = getTodayBounds();
+    const todayDateStr = getAttendanceDate();
+    const todayMoment = moments.tz(TIMEZONE);
+    const dayOfWeek = moments.tz(todayDateStr, "YYYY-MM-DD", TIMEZONE).day();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     // Build employee filter based on scope
