@@ -102,11 +102,24 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    let today = getAttendanceDate(); // 5am cutoff handles both Day and Night shifts
-    const attendance = await Attendance.findOne({
-      user_id: userId,
-      currentDate: today,
-    });
+    let today = getAttendanceDate(); // 5am cutoff
+    let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
+
+    // Fallback: if no open record for today, check yesterday —
+    // night shift workers may have punched in before the 5am cutoff boundary
+    if (!attendance || !attendance.isPunchedIn) {
+      const yesterday = moments.tz(TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
+      if (yesterday !== today) {
+        const yesterdayAttendance = await Attendance.findOne({
+          user_id: userId,
+          currentDate: yesterday,
+          isPunchedIn: true,
+        });
+        if (yesterdayAttendance) {
+          attendance = yesterdayAttendance;
+        }
+      }
+    }
 
     if (!attendance || !attendance.isPunchedIn) {
       return res.status(400).json({ message: "User hasn't punched in today" });
