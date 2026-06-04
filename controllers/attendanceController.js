@@ -32,12 +32,28 @@ exports.punchIn = async (req, res) => {
     }
 
     const today = getAttendanceDate(); // 5am cutoff — before 5am = previous day
-    const punchInTime = moment().tz(TIMEZONE);
+    const punchInTime = moments.tz(TIMEZONE);
 
     let attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
     });
+
+    // Check yesterday too — prevent night shift employee from double punching in
+    // if they already have an open record from previous day
+    if (!attendance) {
+      const yesterday = moments.tz(TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
+      if (yesterday !== today) {
+        const openYesterday = await Attendance.findOne({
+          user_id: userId,
+          currentDate: yesterday,
+          isPunchedIn: true,
+        });
+        if (openYesterday) {
+          return res.status(400).json({ message: "You already punched in — please clock out first." });
+        }
+      }
+    }
 
     if (attendance && attendance.isPunchedIn) {
       return res.status(400).json({ message: "User already punched in today" });
