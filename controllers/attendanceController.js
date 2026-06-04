@@ -323,6 +323,23 @@ exports.getUserAttendance = async (req, res) => {
       currentDate: { $gte: startDate, $lte: endDate },
     }).sort({ currentDate: -1 }).lean();
 
+    // For "today" range: if no record found, check yesterday for an open punch-in
+    // (night shift employees who punched in yesterday and are still clocked in)
+    if (range === "today" && existing.length === 0) {
+      const yesterday = moments.tz(TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
+      const nightShiftRecord = await Attendance.findOne({
+        user_id: userId,
+        currentDate: yesterday,
+        isPunchedIn: true,
+      }).lean();
+      if (nightShiftRecord) {
+        return res.status(200).json({
+          message: "All attendance records",
+          data: [nightShiftRecord],
+        });
+      }
+    }
+
     // Fill missing days with Absent / Week-Off up to today
     const today = moment.tz("Asia/Kolkata").endOf("day");
     const user = await User.findById(userId).select("type").lean();
