@@ -492,6 +492,15 @@ const emitUserNotifications = async ({
       offlineRecipientIds.map(async (userId) => {
         const recipient = recipientsMap[userId];
         if (!recipient?.email) return;
+        const { sendPush } = require("../utils/pushNotification");
+        if (recipient.fcmToken) {
+          await sendPush(
+            recipient.fcmToken,
+            `Task update in ${title || "channel"}`,
+            description,
+            { type: "task" }
+          );
+        }
         await sendMail(
           recipient.email,
           `Task update in ${title || "channel"}`,

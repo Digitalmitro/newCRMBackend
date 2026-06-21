@@ -206,6 +206,15 @@ exports.sendChannelMessage = async (req, res) => {
         offlineRecipients.map(async (memberId) => {
           const member = await resolveUserEntity(memberId);
           if (!member?.email) return;
+          const { sendPush } = require("../utils/pushNotification");
+          if (member.fcmToken) {
+            await sendPush(
+              member.fcmToken,
+              `New message in ${channelName}`,
+              `${senderName}: ${previewLine}`,
+              { type: "channel", channelId: channelId?.toString(), senderName }
+            );
+          }
           await sendMail(
             member.email,
             `New message in ${channelName}`,
@@ -275,17 +284,34 @@ exports.getChannelMessages = async (req, res) => {
   try {
     const { channelId } = req.params;
     if (!channelId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Channel ID is required." });
+      return res.status(400).json({ success: false, message: "Channel ID is required." });
     }
-    const messages = await ChannelMessage.find({ channelId }).sort({ createdAt: 1 });
-    return res.status(200).json({ success: true, messages });
+
+    // Pagination
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip  = (page - 1) * limit;
+
+    const filter = { channelId };
+    const [messages, total] = await Promise.all([
+      ChannelMessage.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ChannelMessage.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      messages: messages.reverse(), // oldest-first within page
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: skip + messages.length < total,
+        nextPage: skip + messages.length < total ? page + 1 : null,
+      },
+    });
   } catch (error) {
     console.error("Error fetching channel messages:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Internal Server Error" });
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 

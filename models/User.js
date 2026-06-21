@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: "" },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
+    fcmToken: { type: String, default: "" }, // Firebase push notification token
   },
   { timestamps: true }
 );

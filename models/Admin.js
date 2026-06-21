@@ -12,6 +12,7 @@ const registeradminSchema = mongoose.Schema(
     avatar: { type: String, default: "" },
     otp: { type: String },
     otpExpiration: { type: Date },
+    fcmToken: { type: String, default: "" }, // Firebase push notification token
 
     // Granular permissions
     permissions: {

@@ -163,6 +163,17 @@ const sendMessage = async (req, res) => {
     }
 
     if (!receiverIsOnline && receiverEntity?.email && !isSelfMessage) {
+      const { sendPush } = require("../utils/pushNotification");
+      // Push notification
+      if (receiverEntity.fcmToken) {
+        await sendPush(
+          receiverEntity.fcmToken,
+          `New message from ${senderName}`,
+          previewLine,
+          { type: "dm", senderId: sender?.toString(), senderName }
+        );
+      }
+      // Email notification
       const mailSent = await sendMail(
         receiverEntity.email,
         `New message from ${senderName}`,
@@ -188,19 +199,38 @@ const getMessages = async (req, res) => {
   try {
     const { sender, receiver } = req.params;
     if (!sender || !receiver) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Sender and receiver are required." });
+      return res.status(400).json({ success: false, message: "Sender and receiver are required." });
     }
 
-    const messages = await DirectMessage.find({
+    // Pagination — Flutter uses page/limit for infinite scroll
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip  = (page - 1) * limit;
+
+    const filter = {
       $or: [
         { sender, receiver },
         { sender: receiver, receiver: sender },
       ],
-    }).sort({ createdAt: 1 });
+    };
 
-    res.status(200).json({ success: true, messages });
+    const [messages, total] = await Promise.all([
+      DirectMessage.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      DirectMessage.countDocuments(filter),
+    ]);
+
+    // Return newest-first for Flutter (reverse for web which expects oldest-first)
+    res.status(200).json({
+      success: true,
+      messages: messages.reverse(), // oldest-first within page
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: skip + messages.length < total,
+        nextPage: skip + messages.length < total ? page + 1 : null,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }

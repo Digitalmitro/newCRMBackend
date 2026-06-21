@@ -62,6 +62,7 @@ app.use("/profile", profileRoutes);   // feature #1 — avatars
 app.use("/payslips", payslipRoutes);  // feature #2 — payslips
 app.use("/salary-sheet", require("./routes/salarySheetRoutes")); // salary CSV
 app.use("/superadmin", require("./routes/superAdminRoutes")); // superadmin management
+app.use("/mobile", require("./routes/mobileRoutes")); // Flutter mobile API
 
 // ✅ Serve uploaded files (reports etc.) from local disk (fix #7)
 // Files are stored at /uploads/reports/<filename> on the server.
