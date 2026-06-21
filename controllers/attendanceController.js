@@ -7,7 +7,7 @@ const { triggerSoftRefresh } = require("../utils/socket");
 const { checkWeekendOrHoliday } = require("../utils/weekHoliday");
 const moment = require("moment");
 const moments = require("moment-timezone");
-const { getAttendanceDate, getTodayBounds, TIMEZONE } = require("../utils/attendanceDay");
+const { getAttendanceDate, TIMEZONE } = require("../utils/attendanceDay");
 
 // Helper function to calculate working time in minutes
 const calculateWorkingTime = (punchIn, punchOut) => {
@@ -627,12 +627,16 @@ exports.getAllAttendanceforadmin = async (req, res) => {
 exports.getTodaysAttendanceforadmin = async (req, res) => {
   try {
     const { getAdminScope } = require("../utils/adminScope");
+    const { getAttendanceDayBounds } = require("../utils/attendanceDay");
     const scope = await getAdminScope(req.user?.userId);
 
-    const { start: today, end: tomorrow } = getTodayBounds();
-    const todayDateStr = getAttendanceDate();
-    const todayMoment = moments.tz(TIMEZONE);
-    const dayOfWeek = moments.tz(todayDateStr, "YYYY-MM-DD", TIMEZONE).day();
+    // Optional ?date=YYYY-MM-DD — lets the mobile app's calendar picker
+    // fetch any day's attendance, not just today. Defaults to today
+    // exactly as before when omitted, so existing web usage is unaffected.
+    const requestedDate = req.query?.date;
+    const targetDateStr = requestedDate || getAttendanceDate();
+    const { start: today, end: tomorrow } = getAttendanceDayBounds(targetDateStr);
+    const dayOfWeek = moments.tz(targetDateStr, "YYYY-MM-DD", TIMEZONE).day();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     // Build employee filter based on scope
@@ -641,7 +645,7 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
       employeeFilter._id = { $in: scope.allowedEmployees };
     }
 
-    // Fetch all active employees + today's existing attendance records in parallel
+    // Fetch all active employees + that date's existing attendance records in parallel
     const [allEmployees, existingRecords] = await Promise.all([
       User.find(employeeFilter).select("_id name email avatar type").lean(),
       Attendance.find({ currentDate: { $gte: today, $lte: tomorrow } })
