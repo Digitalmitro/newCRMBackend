@@ -515,13 +515,26 @@ const emitUserNotifications = async ({
   return notificationDocs;
 };
 
-const postSystemMessage = async (channelId, message) => {
+const postSystemMessage = async (channelId, message, task = null, assignedToName = null) => {
+  const taskSnapshot = task
+    ? {
+        taskId: task._id,
+        taskNumber: task.taskNumber,
+        title: task.title,
+        status: task.status,
+        priority: task.priority,
+        deadline: task.deadline,
+        assignedToName: assignedToName || null,
+      }
+    : undefined;
+
   const systemMessage = await ChannelMessage.create({
     channelId,
     sender: null,
     isSystem: true,
     systemLabel: "System",
     message,
+    ...(taskSnapshot ? { taskSnapshot } : {}),
   });
   const io = getIo();
   io.to(channelId.toString()).emit("new-channel-message", systemMessage);
@@ -1057,8 +1070,8 @@ const createChannelTask = async (req, res) => {
       activityLog: initialActivity,
     });
 
-    await postSystemMessage(channel._id, `${taskNumber} created by ${creatorName}.`);
-    await postSystemMessage(channel._id, `${taskNumber} assigned to ${assigneeName}.`);
+    await postSystemMessage(channel._id, `${taskNumber} created by ${creatorName}.`, createdTask, assigneeName);
+    await postSystemMessage(channel._id, `${taskNumber} assigned to ${assigneeName}.`, createdTask, assigneeName);
 
     if (assignedTo?.toString() !== requesterId?.toString()) {
       await emitUserNotifications({
@@ -1279,7 +1292,9 @@ const updateChannelTask = async (req, res) => {
     if (assignedTo !== undefined && previousAssignedTo !== task.assignedTo?.toString()) {
       await postSystemMessage(
         channel._id,
-        `${task.taskNumber} assigned to ${assigneeName}.`
+        `${task.taskNumber} assigned to ${assigneeName}.`,
+        task,
+        assigneeName
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1309,7 +1324,8 @@ const updateChannelTask = async (req, res) => {
     ) {
       await postSystemMessage(
         channel._id,
-        `${task.taskNumber} deadline updated by ${actorName}.`
+        `${task.taskNumber} deadline updated by ${actorName}.`,
+        task
       );
       pendingActivity.push(
         buildTaskActivity({
@@ -1336,11 +1352,12 @@ const updateChannelTask = async (req, res) => {
             sender: channel._id,
           });
         }
-        await postSystemMessage(channel._id, `${task.taskNumber} marked as completed.`);
+        await postSystemMessage(channel._id, `${task.taskNumber} marked as completed.`, task);
       } else {
         await postSystemMessage(
           channel._id,
-          `${task.taskNumber} status updated to ${task.status.toLowerCase()}.`
+          `${task.taskNumber} status updated to ${task.status.toLowerCase()}.`,
+          task
         );
       }
       pendingActivity.push(
@@ -1356,7 +1373,8 @@ const updateChannelTask = async (req, res) => {
     if (priority !== undefined && previousPriority !== task.priority) {
       await postSystemMessage(
         channel._id,
-        `${task.taskNumber} priority updated to ${task.priority.toLowerCase()}.`
+        `${task.taskNumber} priority updated to ${task.priority.toLowerCase()}.`,
+        task
       );
       pendingActivity.push(
         buildTaskActivity({

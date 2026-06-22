@@ -13,6 +13,20 @@ const ChannelMessageSchema = new mongoose.Schema({
   isPinned: { type: Boolean, default: false, index: true },
   pinnedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
   pinnedAt: { type: Date, default: null },
+  // When isSystem=true and the message relates to a task event (created,
+  // completed, status/priority/deadline changed), this carries a snapshot
+  // of the task at that moment so the chat UI can render a rich task card
+  // instead of a plain text bubble. Intentionally a snapshot, not a live
+  // ref — shows state at time of the event, like a Slack/GitHub bot post.
+  taskSnapshot: {
+    taskId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    taskNumber: { type: String, default: null },
+    title: { type: String, default: null },
+    status: { type: String, default: null },
+    priority: { type: String, default: null },
+    deadline: { type: Date, default: null },
+    assignedToName: { type: String, default: null },
+  },
   message: {
     type: String,
     // Required only when there are no attachments; an attachment-only post
