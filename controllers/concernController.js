@@ -102,7 +102,7 @@ const getAllConcerns = async (req, res) => {
       filter.user_id = { $in: scope.allowedEmployees };
     }
 
-    const concerns = await ConcernModel.find(filter).populate("user_id", "name email");
+    const concerns = await ConcernModel.find(filter).populate("user_id", "name email avatar");
     res.status(200).json({ success: true, concerns });
   } catch (error) {
     console.error("Error fetching concerns:", error);
