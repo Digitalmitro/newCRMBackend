@@ -50,6 +50,16 @@ const ChannelMessageSchema = new mongoose.Schema({
     default: [],
   },
   seenBy: [{ type: mongoose.Schema.Types.ObjectId, default: [] }],
+  // One reaction per user per message — picking a new emoji replaces
+  // their previous one, tapping the same emoji again clears it.
+  reactions: {
+    type: [{
+      emoji: { type: String, required: true },
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      userName: { type: String, default: "" },
+    }],
+    default: [],
+  },
   replyTo: { type: mongoose.Schema.Types.ObjectId, ref: "ChannelMessage", default: null },
   replyPreview: {
     message: { type: String },

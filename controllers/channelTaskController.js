@@ -9,6 +9,7 @@ const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const sendMail = require("../services/sendMail");
 const { getIo, emitToUser, isUserOnline, triggerSoftRefresh } = require("../utils/socket");
+const { getAdminScope } = require("../utils/adminScope");
 
 const VALID_STATUSES = ["Assigned", "Acknowledged", "Completed"];
 const VALID_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -426,8 +427,21 @@ const getAccessibleChannel = async (channelId, userId) => {
   if (!mongoose.Types.ObjectId.isValid(channelId)) return null;
   const channel = await Channel.findById(channelId).lean();
   if (!channel) return null;
-  if (!isChannelMember(channel, userId)) return null;
-  return channel;
+  if (isChannelMember(channel, userId)) return channel;
+
+  // Bug fix: a brand-new Admin created by SuperAdmin isn't automatically
+  // added as a member of every existing channel, so without this check
+  // they'd get 403'd on every channel's tasks despite SuperAdmin having
+  // granted them full task permissions. Admin/SuperAdmin should see a
+  // channel's tasks whenever that channel is within their scope, exactly
+  // like they already can for attendance/employees/leads — membership
+  // shouldn't be the only door in for staff who manage the whole company.
+  const scope = await getAdminScope(userId);
+  if (scope) {
+    if (scope.isSuperAdmin || scope.allChannels) return channel;
+    if (scope.allowedChannels.includes(channelId.toString())) return channel;
+  }
+  return null;
 };
 
 const getAdminIdsForChannel = async (channel) => {

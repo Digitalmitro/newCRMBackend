@@ -515,7 +515,53 @@ module.exports = {
   clearConversation,
   togglePinDirectMessage,
   getPinnedDirectMessages,
+  toggleReactionDirectMessage,
 };
+
+// PATCH /message/messages/:messageId/react — add/replace/remove your own
+// reaction on a DM. Body: { emoji }. One reaction per user per message —
+// picking a new emoji replaces your old one; tapping the same emoji again
+// clears it, matching how WhatsApp/iMessage reactions behave.
+async function toggleReactionDirectMessage(req, res) {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user?.userId;
+    if (!emoji || typeof emoji !== "string") {
+      return res.status(400).json({ success: false, message: "emoji is required." });
+    }
+
+    const msg = await DirectMessage.findById(messageId);
+    if (!msg) return res.status(404).json({ success: false, message: "Message not found." });
+
+    const existingIndex = msg.reactions.findIndex((r) => r.userId?.toString() === userId?.toString());
+    if (existingIndex !== -1 && msg.reactions[existingIndex].emoji === emoji) {
+      // Same emoji tapped again — remove it.
+      msg.reactions.splice(existingIndex, 1);
+    } else if (existingIndex !== -1) {
+      // Different emoji — replace their previous reaction.
+      msg.reactions[existingIndex].emoji = emoji;
+    } else {
+      const reactor = await resolveUserEntity(userId);
+      msg.reactions.push({ emoji, userId, userName: reactor?.name || "" });
+    }
+
+    await msg.save({ validateBeforeSave: false });
+
+    const { emitToUser: emit } = require("../utils/socket");
+    [msg.sender?.toString(), msg.receiver?.toString()].filter(Boolean).forEach((uid) => {
+      emit(uid, "direct-message-reacted", {
+        messageId: msg._id,
+        reactions: msg.reactions,
+      });
+    });
+
+    return res.json({ success: true, reactions: msg.reactions });
+  } catch (error) {
+    console.error("toggleReactionDirectMessage error:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+}
 
 // PATCH /message/:messageId/pin — toggle pin on a DM
 async function togglePinDirectMessage(req, res) {

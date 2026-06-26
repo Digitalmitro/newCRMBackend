@@ -529,6 +529,47 @@ exports.togglePinChannelMessage = async (req, res) => {
   }
 };
 
+// PATCH /channels/messages/:messageId/react — add/replace/remove your own
+// reaction on a channel message. Body: { emoji }. Same one-reaction-per-
+// user rule as the DM version: a new emoji replaces your old one, the
+// same emoji again clears it.
+exports.toggleReactionChannelMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user?.userId;
+    if (!emoji || typeof emoji !== "string") {
+      return res.status(400).json({ success: false, message: "emoji is required." });
+    }
+
+    const msg = await ChannelMessage.findById(messageId);
+    if (!msg) return res.status(404).json({ success: false, message: "Message not found." });
+
+    const existingIndex = msg.reactions.findIndex((r) => r.userId?.toString() === userId?.toString());
+    if (existingIndex !== -1 && msg.reactions[existingIndex].emoji === emoji) {
+      msg.reactions.splice(existingIndex, 1);
+    } else if (existingIndex !== -1) {
+      msg.reactions[existingIndex].emoji = emoji;
+    } else {
+      const reactor = await resolveUserEntity(userId);
+      msg.reactions.push({ emoji, userId, userName: reactor?.name || "" });
+    }
+
+    await msg.save({ validateBeforeSave: false });
+
+    const io = getIo();
+    io.to(msg.channelId.toString()).emit("channel-message-reacted", {
+      messageId: msg._id,
+      reactions: msg.reactions,
+    });
+
+    return res.json({ success: true, reactions: msg.reactions });
+  } catch (error) {
+    console.error("toggleReactionChannelMessage error:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
 // GET /channels/:channelId/pinned
 // Returns all pinned messages in a channel, newest pin first.
 exports.getPinnedChannelMessages = async (req, res) => {

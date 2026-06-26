@@ -25,6 +25,16 @@ const DirectMessageSchema = new mongoose.Schema({
     senderName: { type: String },
   },
   seen: { type: Boolean, default: false },
+  // One reaction per user per message — picking a new emoji replaces
+  // their previous one, tapping the same emoji again clears it.
+  reactions: {
+    type: [{
+      emoji: { type: String, required: true },
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      userName: { type: String, default: "" },
+    }],
+    default: [],
+  },
   // Edit / delete tracking. Tombstones preserved like WhatsApp.
   editedAt: { type: Date, default: null },
   isDeleted: { type: Boolean, default: false, index: true },

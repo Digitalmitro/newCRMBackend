@@ -12,6 +12,7 @@ const {
   clearConversation,
   togglePinDirectMessage,
   getPinnedDirectMessages,
+  toggleReactionDirectMessage,
 } = require("../controllers/messageController");
 
 const router = express.Router();
@@ -30,3 +31,4 @@ module.exports = router;
 
 router.patch("/messages/:messageId/pin", authMiddleware, togglePinDirectMessage);
 router.get("/pinned", authMiddleware, getPinnedDirectMessages);
+router.patch("/messages/:messageId/react", authMiddleware, toggleReactionDirectMessage);

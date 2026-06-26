@@ -8,6 +8,7 @@ const {
   getChannelMentionCandidates,
   togglePinChannelMessage,
   getPinnedChannelMessages,
+  toggleReactionChannelMessage,
 } = require("../controllers/channelChatsController");
 const {
   getChannelTasks,
@@ -37,6 +38,7 @@ router.post("/:channelId/read", authMiddleware, markChannelMessagesAsRead);
 router.patch("/messages/:messageId", authMiddleware, editChannelMessage);
 router.delete("/messages/:messageId", authMiddleware, deleteChannelMessage);
 router.patch("/messages/:messageId/pin", authMiddleware, togglePinChannelMessage);
+router.patch("/messages/:messageId/react", authMiddleware, toggleReactionChannelMessage);
 
 // Pinned messages for a channel
 router.get("/:channelId/pinned", authMiddleware, getPinnedChannelMessages);
