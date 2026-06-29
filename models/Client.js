@@ -17,6 +17,7 @@ const clientSchema = new mongoose.Schema(
       required: true,
     },
     avatar: { type: String, default: "" },
+    fcmToken: { type: String, default: "" }, // Firebase push notification token
   },
   {
     timestamps: true,

@@ -270,7 +270,7 @@ exports.getAdminProfile = async (req, res) => {
     }
 
     const admin = await RegisteradminModal.findById(adminId).select(
-      "name email phone type avatar role permissions"
+      "name email phone type avatar role permissions jobDescription"
     );
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
@@ -285,7 +285,7 @@ exports.getAdminProfile = async (req, res) => {
 exports.updateAdminProfile = async (req, res) => {
   try {
     const adminId = req.user?.userId;
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, jobDescription } = req.body;
     if (!adminId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -308,6 +308,7 @@ exports.updateAdminProfile = async (req, res) => {
 
     if (name) admin.name = name;
     if (phone) admin.phone = phone;
+    if (jobDescription !== undefined) admin.jobDescription = jobDescription;
 
     if (password) {
       const salt = await bcrypt.genSalt(10);
@@ -325,6 +326,7 @@ exports.updateAdminProfile = async (req, res) => {
         phone: admin.phone,
         type: admin.type,
         avatar: admin.avatar || "",
+        jobDescription: admin.jobDescription || "",
       },
     });
   } catch (error) {
@@ -401,7 +403,7 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, phone, type, shift, employeeType } = req.body;
+    const { name, email, phone, type, shift, employeeType, jobDescription } = req.body;
     const shiftValue = shift || type;
     const user = await User.findById(req.params.id);
 
@@ -413,6 +415,9 @@ exports.updateUser = async (req, res) => {
     user.type = shiftValue || user.type;
     if (employeeType) {
       user.employeeType = employeeType;
+    }
+    if (jobDescription !== undefined) {
+      user.jobDescription = jobDescription;
     }
 
     const updatedUser = await user.save();

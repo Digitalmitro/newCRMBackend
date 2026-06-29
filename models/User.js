@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema(
     employeeType: { type: String, enum: ["Full-Time", "Part-Time"], default: "Full-Time" },
     type: { type: String, enum: ["Day", "Night"], required: true },
     avatar: { type: String, default: "" },
+    jobDescription: { type: String, default: "" },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
     fcmToken: { type: String, default: "" }, // Firebase push notification token

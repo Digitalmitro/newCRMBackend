@@ -46,40 +46,15 @@ const submitConcern = async (req, res) => {
       .filter((id) => id && id !== user_id.toString());
 
     if (adminIds.length > 0) {
-      const title = `New concern: ${concernType}`;
-      const description = `${reporterName} reported: ${message}`;
-      const notificationDocs = await Notification.insertMany(
-        adminIds.map((id) => ({
-          userId: id,
-          title,
-          description,
-          type: "CONCERN",
-          sender: user_id,
-        }))
-      );
-      const deliveredIds = [];
-      adminIds.forEach((id, idx) => {
-        if (!isUserOnline(id)) {
-          return;
-        }
-        const doc = notificationDocs[idx];
-        emitToUser(id, "receive-notification", {
-          title: doc.title,
-          description: doc.description,
-          type: doc.type,
-          sender: doc.sender,
-          timestamp: doc.createdAt,
-        });
-        if (doc?._id) {
-          deliveredIds.push(doc._id);
-        }
+      const { notifyUsers } = require("../utils/notifyUsers");
+      await notifyUsers({
+        userIds: adminIds,
+        title: `New concern: ${concernType}`,
+        description: `${reporterName} reported: ${message}`,
+        type: "CONCERN",
+        sender: user_id,
+        pushData: { type: "concern", concernId: newConcern._id?.toString() },
       });
-      if (deliveredIds.length > 0) {
-        await Notification.updateMany(
-          { _id: { $in: deliveredIds } },
-          { $set: { isRead: true } }
-        );
-      }
     }
 
     await triggerSoftRefresh("Concern");
@@ -102,7 +77,9 @@ const getAllConcerns = async (req, res) => {
       filter.user_id = { $in: scope.allowedEmployees };
     }
 
-    const concerns = await ConcernModel.find(filter).populate("user_id", "name email avatar");
+    const concerns = await ConcernModel.find(filter)
+      .populate("user_id", "name email avatar")
+      .sort({ createdAt: -1 });
     res.status(200).json({ success: true, concerns });
   } catch (error) {
     console.error("Error fetching concerns:", error);

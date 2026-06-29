@@ -455,78 +455,27 @@ const getAdminIdsForChannel = async (channel) => {
   return admins.map((admin) => admin._id.toString());
 };
 
-const emitUserNotifications = async ({
-  userIds = [],
-  title,
-  description,
-  type,
-  sender = null,
-}) => {
-  const uniqueIds = [...new Set(userIds.filter(Boolean).map((id) => id.toString()))];
-  if (uniqueIds.length === 0) return [];
-
-  const notificationDocs = await Notification.insertMany(
-    uniqueIds.map((id) => ({
-      userId: id,
-      title,
-      description,
-      type,
-      sender,
-    }))
-  );
-
-  const deliveredIds = [];
-  const offlineRecipientIds = [];
-  uniqueIds.forEach((userId, idx) => {
-    const doc = notificationDocs[idx];
-    if (!isUserOnline(userId)) {
-      offlineRecipientIds.push(userId);
-      return;
-    }
-    emitToUser(userId, "receive-notification", {
-      title: doc.title,
-      description: doc.description,
-      type: doc.type,
-      sender: doc.sender,
-      timestamp: doc.createdAt,
-    });
-    deliveredIds.push(doc._id);
+// Thin wrapper kept for the existing call sites below — the real logic
+// (including the offline-only push bug fix) now lives in the shared
+// utils/notifyUsers helper, reused by concern/callback notifications too.
+// Also fixes a pre-existing bug where the push title was being wrapped as
+// "Task update in {title}" — since `title` here is already the full
+// notification title (e.g. "TASK-1234 assigned to you"), that produced
+// confusing double-wrapped text; now the push just uses title/description
+// as-is, same as the in-app notification.
+const emitUserNotifications = async ({ userIds = [], title, description, type, sender = null }) => {
+  const { notifyUsers } = require("../utils/notifyUsers");
+  // `sender` is always the channel's _id at every call site below, so it
+  // doubles as the channelId the Flutter app needs to navigate to the
+  // right group chat when the user taps the push notification.
+  return notifyUsers({
+    userIds,
+    title,
+    description,
+    type,
+    sender,
+    pushData: { type: "task", channelId: sender?.toString() },
   });
-
-  if (deliveredIds.length > 0) {
-    await Notification.updateMany(
-      { _id: { $in: deliveredIds } },
-      { $set: { isRead: true } }
-    );
-  }
-
-  if (offlineRecipientIds.length > 0) {
-    const recipientsMap = await resolveUsersMap(offlineRecipientIds);
-    await Promise.all(
-      offlineRecipientIds.map(async (userId) => {
-        const recipient = recipientsMap[userId];
-        if (!recipient?.email) return;
-        const { sendPush } = require("../utils/pushNotification");
-        if (recipient.fcmToken) {
-          await sendPush(
-            recipient.fcmToken,
-            `Task update in ${title || "channel"}`,
-            description,
-            { type: "task" }
-          );
-        }
-        await sendMail(
-          recipient.email,
-          `Task update in ${title || "channel"}`,
-          description,
-          "notification",
-          recipient._resolvedType || "employee"
-        );
-      })
-    );
-  }
-
-  return notificationDocs;
 };
 
 const postSystemMessage = async (channelId, message, task = null, assignedToName = null) => {
@@ -913,7 +862,7 @@ const getChannelTasks = async (req, res) => {
     });
 
     const tasks = await ChannelTask.find(query)
-      .sort({ deadline: 1, createdAt: -1 })
+      .sort({ createdAt: -1 })
       .lean();
 
     const mappedTasks = await mapTasksWithUsers(tasks);
@@ -1736,7 +1685,7 @@ const getAllTasks = async (req, res) => {
     if (tag?.trim()) taskQuery.tags = { $regex: escapeRegex(tag.trim()), $options: "i" };
 
     const tasks = await ChannelTask.find(taskQuery)
-      .sort({ deadline: 1, createdAt: -1 })
+      .sort({ createdAt: -1 })
       .lean();
 
     if (tasks.length === 0) {

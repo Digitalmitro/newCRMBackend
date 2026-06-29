@@ -162,10 +162,13 @@ const sendMessage = async (req, res) => {
       emitToUser(sender, "updateUnread");
     }
 
-    if (!receiverIsOnline && receiverEntity?.email && !isSelfMessage) {
-      const { sendPush } = require("../utils/pushNotification");
-      // Push notification
-      if (receiverEntity.fcmToken) {
+    if (!isSelfMessage) {
+      // Push fires regardless of "online" status — a mobile socket can
+      // stay connected while the app is backgrounded, so "online" doesn't
+      // mean "currently looking at this chat". Email stays offline-only
+      // since that channel really is just a "in case you missed it" net.
+      if (receiverEntity?.fcmToken) {
+        const { sendPush } = require("../utils/pushNotification");
         await sendPush(
           receiverEntity.fcmToken,
           `New message from ${senderName}`,
@@ -173,16 +176,17 @@ const sendMessage = async (req, res) => {
           { type: "dm", senderId: sender?.toString(), senderName }
         );
       }
-      // Email notification
-      const mailSent = await sendMail(
-        receiverEntity.email,
-        `New message from ${senderName}`,
-        previewLine,
-        "notification",
-        receiverEntity._resolvedType || "employee"
-      );
-      if (!mailSent) {
-        console.warn("Failed to send offline message email.");
+      if (!receiverIsOnline && receiverEntity?.email) {
+        const mailSent = await sendMail(
+          receiverEntity.email,
+          `New message from ${senderName}`,
+          previewLine,
+          "notification",
+          receiverEntity._resolvedType || "employee"
+        );
+        if (!mailSent) {
+          console.warn("Failed to send offline message email.");
+        }
       }
     }
 

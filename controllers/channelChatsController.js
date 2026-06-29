@@ -183,14 +183,17 @@ exports.sendChannelMessage = async (req, res) => {
         }
       });
 
-      // Channel-wide offline email for normal traffic. We skip mentioned users
-      // here because they'll get a more specific mention email below.
+      // Push fires for everyone (except sender + already-handled mentions)
+      // regardless of "online" status — a mobile socket can stay
+      // connected while the app is backgrounded, so "online" doesn't mean
+      // "currently looking at this channel". Email stays offline-only,
+      // and channel-wide email also still skips mentioned users here
+      // since they get a more specific mention email below.
       const mentionSet = new Set(mentions);
-      const offlineRecipients = uniqueMembers.filter(
+      const nonMentionRecipients = uniqueMembers.filter(
         (memberId) =>
           memberId &&
           memberId !== sender?.toString() &&
-          !isUserOnline(memberId) &&
           !mentionSet.has(memberId)
       );
 
@@ -203,9 +206,9 @@ exports.sendChannelMessage = async (req, res) => {
         : "";
 
       await Promise.all(
-        offlineRecipients.map(async (memberId) => {
+        nonMentionRecipients.map(async (memberId) => {
           const member = await resolveUserEntity(memberId);
-          if (!member?.email) return;
+          if (!member) return;
           const { sendPush } = require("../utils/pushNotification");
           if (member.fcmToken) {
             await sendPush(
@@ -215,13 +218,15 @@ exports.sendChannelMessage = async (req, res) => {
               { type: "channel", channelId: channelId?.toString(), senderName }
             );
           }
-          await sendMail(
-            member.email,
-            `New message in ${channelName}`,
-            `${senderName} sent a message in ${channelName}: ${previewLine}`,
-            "notification",
-            member._resolvedType || "employee"
-          );
+          if (!isUserOnline(memberId) && member.email) {
+            await sendMail(
+              member.email,
+              `New message in ${channelName}`,
+              `${senderName} sent a message in ${channelName}: ${previewLine}`,
+              "notification",
+              member._resolvedType || "employee"
+            );
+          }
         })
       );
     }
@@ -240,6 +245,16 @@ exports.sendChannelMessage = async (req, res) => {
           if (!mentionedId || mentionedId === sender?.toString()) return;
           const mentioned = await resolveUserEntity(mentionedId);
           if (!mentioned) return;
+
+          if (mentioned.fcmToken) {
+            const { sendPush } = require("../utils/pushNotification");
+            await sendPush(
+              mentioned.fcmToken,
+              `${senderName} mentioned you in ${channelName}`,
+              mentionPreview,
+              { type: "mention", channelId: channelId?.toString(), senderName }
+            );
+          }
 
           if (isUserOnline(mentionedId)) {
             emitToUser(mentionedId, "receive-notification", {

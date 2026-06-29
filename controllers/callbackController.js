@@ -2,6 +2,7 @@ const CallbackModel = require("../models/CallBack");
 const RegisteruserModal = require("../models/User");
 const SaleModel = require("../models/Sale");
 const mongoose = require("mongoose");
+const Admin = require("../models/Admin");
 const { triggerSoftRefresh } = require("../utils/socket");
 
 // ✅ Create a new callback
@@ -33,7 +34,32 @@ exports.createCallback = async (req, res) => {
     });
 
     await newCallback.save();
- await triggerSoftRefresh("Callback");
+    await triggerSoftRefresh("Callback");
+
+    // Notify admins/superadmin a new callback lead came in — same
+    // notify path (in-app + push + offline email) as concerns/tasks.
+    try {
+      const creator = await RegisteruserModal.findById(userId).select("name").lean();
+      const admins = await Admin.find({}, "_id").lean();
+      const adminIds = admins
+        .map((admin) => admin?._id?.toString())
+        .filter((id) => id && id !== userId.toString());
+      if (adminIds.length > 0) {
+        const { notifyUsers } = require("../utils/notifyUsers");
+        await notifyUsers({
+          userIds: adminIds,
+          title: "New callback created",
+          description: `${creator?.name || "An employee"} added a callback for ${name || phone || "a lead"}.`,
+          type: "CALLBACK",
+          sender: userId,
+          pushData: { type: "callback", callbackId: newCallback._id?.toString() },
+        });
+      }
+    } catch (notifyError) {
+      // Never let a notification failure block the actual callback creation.
+      console.error("createCallback notify error:", notifyError);
+    }
+
     res.send("Transfer created and associated with user");
   } catch (error) {
     console.error(error);

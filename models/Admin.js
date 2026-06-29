@@ -10,6 +10,7 @@ const registeradminSchema = mongoose.Schema(
     type: { type: String, enum: ['Admin', 'SuperAdmin'], default: 'Admin' },
     role: { type: String, enum: ['admin', 'superadmin'], default: 'admin' },
     avatar: { type: String, default: "" },
+    jobDescription: { type: String, default: "" },
     otp: { type: String },
     otpExpiration: { type: Date },
     fcmToken: { type: String, default: "" }, // Firebase push notification token

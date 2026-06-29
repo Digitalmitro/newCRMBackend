@@ -55,7 +55,13 @@ exports.updateScope = async (req, res) => {
 const DEFAULT_PERMISSIONS = {
   task:    { create: false, delete: false },
   channel: { create: false, delete: false, edit: false },
-  salary:  { upload: false, revoke: false },
+  // Bug fix: this was "salary" (which in the schema is just the sidebar
+  // visibility toggle, {access: bool}) instead of "salarySheet" (the
+  // actual upload/revoke action permission) — meant the fallback never
+  // matched anything in the real schema. Harmless in practice today
+  // since the create-admin form always sends explicit permissions now,
+  // but worth having correct for any other caller that omits permissions.
+  salarySheet: { upload: false, revoke: false },
   payslip: { upload: false, revoke: false },
   report:  { add: false, delete: false },
   taskManagement: { access: false },
