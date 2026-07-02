@@ -32,6 +32,30 @@ const sanitizeIdentity = (entity, type) => {
 };
 
 // GET /profile/me — returns the signed-in user's profile (any of the 3 types)
+exports.updateMyProfile = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const { name, phone } = req.body;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!name?.trim()) return res.status(400).json({ success: false, message: "Name is required." });
+
+    // Try User first, then Admin (employees and admins both use this endpoint)
+    const [User, Admin] = [require("../models/User"), require("../models/Admin")];
+    let entity = await User.findById(userId);
+    if (!entity) entity = await Admin.findById(userId);
+    if (!entity) return res.status(404).json({ success: false, message: "User not found." });
+
+    entity.name = name.trim();
+    if (phone) entity.phone = phone.trim();
+    await entity.save();
+
+    return res.json({ success: true, profile: { name: entity.name, phone: entity.phone, avatar: entity.avatar } });
+  } catch (err) {
+    console.error("updateMyProfile error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
 exports.getMyProfile = async (req, res) => {
   try {
     const { entity, type } = await findIdentity(req.user?.userId);

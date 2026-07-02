@@ -136,6 +136,92 @@ exports.uploadPayslip = async (req, res) => {
   }
 };
 
+// POST /payslips/bulk — upload multiple payslips (one PDF per employee) at once.
+// Admin/SuperAdmin only. multipart with fields:
+//   files[]  — PDF files (up to 100)
+//   year, month — same year/month for all files in this batch
+//   mapping  — JSON string: { "<originalFilename>": "<employeeId>", ... }
+//              The caller maps each filename to the employee it belongs to.
+exports.bulkUploadPayslips = async (req, res) => {
+  try {
+    const isAdmin = await isAdminCaller(req.user?.userId);
+    if (!isAdmin) return res.status(403).json({ success: false, message: "Admins only." });
+
+    const files = req.files;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No files uploaded." });
+    }
+
+    const year = parseInteger(req.body.year);
+    const month = parseInteger(req.body.month);
+    if (Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: "Valid year and month (1-12) are required." });
+    }
+
+    let mapping = {};
+    try {
+      mapping = JSON.parse(req.body.mapping || "{}");
+    } catch {
+      return res.status(400).json({ success: false, message: "mapping must be valid JSON." });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const file of files) {
+      const employeeId = mapping[file.originalname];
+      if (!employeeId) {
+        errors.push({ file: file.originalname, error: "No employee mapped to this file." });
+        continue;
+      }
+
+      const employee = await User.findById(employeeId);
+      if (!employee) {
+        errors.push({ file: file.originalname, error: `Employee ${employeeId} not found.` });
+        continue;
+      }
+
+      try {
+        const safeOriginal = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        const diskFileName = `${employeeId}_${year}_${month}_${Date.now()}_${safeOriginal}`;
+        const diskFilePath = nodePath.join(PAYSLIPS_DIR, diskFileName);
+
+        const existing = await Payslip.findOne({ employeeId, year, month }).lean();
+        if (existing?.filePath) {
+          const oldPath = nodePath.join(__dirname, "..", existing.filePath);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+
+        fs.writeFileSync(diskFilePath, file.buffer);
+        const relPath = nodePath.join("uploads", "payslips", diskFileName);
+
+        const payslip = await Payslip.findOneAndUpdate(
+          { employeeId, year, month },
+          { employeeId, year, month, fileUrl: "", filePath: relPath, fileName: file.originalname, note: "", uploadedBy: req.user.userId },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+
+        try { emitToUser(employeeId, "payslip-updated", { year, month }); } catch {}
+
+        results.push({ file: file.originalname, employeeId, payslipId: payslip._id });
+      } catch (fileErr) {
+        errors.push({ file: file.originalname, error: fileErr.message });
+      }
+    }
+
+    return res.status(207).json({
+      success: errors.length === 0,
+      uploaded: results.length,
+      failed: errors.length,
+      results,
+      errors,
+    });
+  } catch (err) {
+    console.error("bulkUploadPayslips error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
 // GET /payslips/employee/:employeeId — list all payslips for one employee
 // Employees can fetch their own; admins can fetch any.
 exports.listEmployeePayslips = async (req, res) => {

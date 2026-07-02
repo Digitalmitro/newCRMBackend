@@ -332,6 +332,8 @@ exports.getMobileDMs = async (req, res) => {
 
 // ─── GET /mobile/socket-info ──────────────────────────────────────────────
 // Returns socket server URL and event names for Flutter socket_io_client.
+// This reflects utils/socket.js exactly — corrected after cross-checking
+// against the real implementation (some earlier docs here were wrong).
 exports.getSocketInfo = async (req, res) => {
   const socketUrl = process.env.SOCKET_URL || process.env.BACKEND_URL || "https://your-backend.onrender.com";
   res.json({
@@ -339,22 +341,27 @@ exports.getSocketInfo = async (req, res) => {
     socket: {
       url: socketUrl,
       transports: ["websocket"],
-      auth: { token: "Bearer <your-jwt-token>" },
+      // IMPORTANT: pass the raw JWT only — no "Bearer " prefix. The socket
+      // auth middleware calls jwt.verify() directly on this value.
+      auth: { token: "<raw-jwt-token-no-bearer-prefix>" },
       events: {
         emit: {
-          join_room:    "Join a DM room. Payload: { userId }",
-          join_channel: "Join a channel room. Payload: { channelId }",
-          send_message: "Send a DM. Payload: { senderId, receiverId, message }",
+          joinChannel: "Join a channel's room so you receive its broadcast events. Payload: channelId (plain string, not an object).",
+          getOnlineUsers: "Request the current online user id list. No payload.",
         },
         on: {
-          "new-message":           "New DM received. Payload: { message object }",
-          "new-channel-message":   "New channel message. Payload: { channelId, message }",
-          "direct-message-updated":"DM edited/deleted. Payload: { updated message }",
-          "dm-message-pinned":     "DM pinned. Payload: { messageId, isPinned }",
-          "updateUnread":          "Trigger unread count refresh",
-          "receive-notification":  "New in-app notification",
-          "user-status":           "User online/offline. Payload: { userId, status }",
-          "soft-refresh":          "Trigger data refresh",
+          authenticated:        "Connection handshake confirmed. Payload: { message, userId }",
+          updateUserStatus:     "Sent to yourself right after connecting. Payload: { userId, status: 'online' }. Note: there is no automatic broadcast when a user goes offline — use getOnlineUsers to poll presence.",
+          onlineUsersList:      "Response to getOnlineUsers. Payload: array of online userId strings.",
+          "new-message":            "New DM received (pushed directly to you, no join needed). Payload: full message object.",
+          "new-channel-message":    "New channel message (only received if you've emitted joinChannel for that channelId). Payload: full message object.",
+          "direct-message-updated": "A DM you sent/received was edited or soft-deleted. Payload: updated message object.",
+          "channel-message-updated":"A channel message was edited or soft-deleted. Payload: updated message object.",
+          "dm-message-pinned":      "A DM was pinned/unpinned. Payload: { messageId, isPinned, pinnedBy, pinnedAt }",
+          "channel-message-pinned": "A channel message was pinned/unpinned. Payload: { messageId, isPinned, pinnedBy, pinnedAt }",
+          updateUnread:          "Your unread counts changed — re-fetch /mobile/channels or /mobile/dms. No payload.",
+          "receive-notification":"A new in-app notification was created for you. Payload: { title, description, type, sender, timestamp }",
+          "soft-refresh":        "Generic 'something changed, re-fetch' signal. Payload: { type }",
         },
       },
     },

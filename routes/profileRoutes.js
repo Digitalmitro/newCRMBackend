@@ -6,6 +6,7 @@ const { upload } = require("../utils/fileUpload");
 const profileController = require("../controllers/profileController");
 
 router.get("/me", authMiddleware, profileController.getMyProfile);
+router.patch("/me", authMiddleware, profileController.updateMyProfile);
 router.post(
   "/avatar",
   authMiddleware,

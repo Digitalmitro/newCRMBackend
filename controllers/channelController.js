@@ -6,6 +6,7 @@ const Client = require("../models/Client");
 const ChannelMessage = require("../models/ChannelMessage");
 const sendMail = require("../services/sendMail");
 const { uploadToCloudinary } = require("../utils/fileUpload");
+const { getIo } = require("../utils/socket");
 
 const {
   CHANNEL_STATUS_OPTIONS,
@@ -135,6 +136,12 @@ exports.updateChannel = async (req, res) => {
 
     await channel.save();
 
+    if (members && Array.isArray(members)) {
+      try {
+        getIo().to(channelId.toString()).emit("channel-members-updated", { channelId });
+      } catch (e) { /* socket optional */ }
+    }
+
     res.status(200).json({ message: "Channel updated successfully", channel });
   } catch (error) {
     console.error("Error updating channel:", error);
@@ -210,6 +217,9 @@ exports.removeMember = async (req, res) => {
     }
 
     await channel.save();
+    try {
+      getIo().to(channelId.toString()).emit("channel-members-updated", { channelId });
+    } catch (e) { /* socket optional */ }
     res.status(200).json({ message: "Member removed successfully", channel });
   } catch (error) {
     console.error("Error removing member:", error);

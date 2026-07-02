@@ -1,6 +1,7 @@
 const SalarySheet = require("../models/SalarySheet");
 const Admin = require("../models/Admin");
 const User = require("../models/User");
+const { triggerSoftRefresh } = require("../utils/socket");
 
 const isAdmin = async (userId) => !!(await Admin.findById(userId).select("_id").lean());
 
@@ -115,6 +116,8 @@ exports.uploadSalarySheet = async (req, res) => {
       rows,
     });
 
+    await triggerSoftRefresh("Salary");
+
     return res.status(201).json({ success: true, sheet, rowCount: rows.length });
   } catch (err) {
     console.error("uploadSalarySheet error:", err?.message, err?.stack?.split("\n")[1]);
@@ -157,6 +160,7 @@ exports.deleteSalarySheet = async (req, res) => {
       return res.status(403).json({ success: false, message: "Admins only." });
     }
     await SalarySheet.findByIdAndDelete(req.params.id);
+    await triggerSoftRefresh("Salary");
     return res.json({ success: true });
   } catch (err) {
     console.error("deleteSalarySheet:", err);
