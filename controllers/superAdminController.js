@@ -65,6 +65,11 @@ const DEFAULT_PERMISSIONS = {
   payslip: { upload: false, revoke: false },
   report:  { add: false, delete: false },
   taskManagement: { access: false },
+  // employee was missing entirely — meant admin.permissions?.employee?.create
+  // was always undefined → 403 on POST /auth/admin/create-user even when the
+  // intent was to grant access, because requirePermission saw the key missing
+  // and treated it as explicitly denied.
+  employee: { create: false, edit: false, delete: false },
 };
 
 // GET /superadmin/admins — list all non-superadmin admins

@@ -25,10 +25,12 @@ const requirePermission = (resource, action) => async (req, res, next) => {
     if (!hasPermissionsSet) return next();
 
     const allowed = admin.permissions?.[resource]?.[action];
+    // Treat both explicit false AND missing key the same way (denied).
+    // The distinction matters for the error message but not the outcome.
     if (!allowed) {
       return res.status(403).json({
         success: false,
-        message: `You don't have permission to ${action} ${resource}.`,
+        message: `You don't have permission to ${action} ${resource}. Ask a SuperAdmin to grant this access in Manage Admins.`,
       });
     }
     next();
