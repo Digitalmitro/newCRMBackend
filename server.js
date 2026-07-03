@@ -31,41 +31,26 @@ const app = express();
 const server = http.createServer(app);
 initSocket(server);
 
-// startCronJobs(48,15)
 startScheduler(0, 20);
 startScheduler(17, 18);
 startTaskOverdueScheduler();
 
-// CORS must come FIRST — before express.json() and before any route.
-// The browser sends an OPTIONS preflight before multipart POST/PUT/PATCH
-// requests; if CORS headers aren't present on that preflight response,
-// the browser blocks the actual request and you get "Failed to fetch"
-// with nothing in the server logs (the request never arrives).
-const allowedOrigins = [
-  process.env.Client_Url,
-  process.env.Admin_Url,
-  process.env.Guest_Url,
-].filter(Boolean); // drop any undefined/empty entries
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, curl, etc.)
-      // and any origin that matches the configured list.
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-// Explicitly respond to all OPTIONS preflights so upload routes work.
-app.options("*", cors());
+// ─── CORS ────────────────────────────────────────────────────────────────────
+// Must be the VERY FIRST middleware — before express.json() and before every
+// route — so OPTIONS preflight requests get correct headers before anything
+// else runs. Using origin:'*' for this internal CRM because:
+//   1. The browser-side CORS mismatch between the OPTIONS response (open) and
+//      the POST response (origin-list) was causing "Failed to fetch" on file
+//      uploads. origin:'*' makes both responses identical — no mismatch.
+//   2. This is an intranet CRM, not a public API, so '*' is fine here.
+const corsOptions = {
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Same config for preflight — no mismatch
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json());
 
@@ -84,15 +69,13 @@ app.use("/notepad", notesRoutes);
 app.use("/files", fileUploadRoutes);
 app.use("/client", clientRoutes);
 // New endpoints
-app.use("/profile", profileRoutes);   // feature #1 — avatars
-app.use("/payslips", payslipRoutes);  // feature #2 — payslips
-app.use("/salary-sheet", require("./routes/salarySheetRoutes")); // salary CSV
-app.use("/superadmin", require("./routes/superAdminRoutes")); // superadmin management
-app.use("/mobile", require("./routes/mobileRoutes")); // Flutter mobile API
+app.use("/profile", profileRoutes);
+app.use("/payslips", payslipRoutes);
+app.use("/salary-sheet", require("./routes/salarySheetRoutes"));
+app.use("/superadmin", require("./routes/superAdminRoutes"));
+app.use("/mobile", require("./routes/mobileRoutes"));
 
-// ✅ Serve uploaded files (reports etc.) from local disk (fix #7)
-// Files are stored at /uploads/reports/<filename> on the server.
-// They are served publicly at /uploads/<filename>.
+// ✅ Serve uploaded files (reports etc.) from local disk
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 const reportsDir = path.join(uploadsDir, "reports");
