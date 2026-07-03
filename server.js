@@ -35,13 +35,39 @@ initSocket(server);
 startScheduler(0, 20);
 startScheduler(17, 18);
 startTaskOverdueScheduler();
-app.use(express.json());
+
+// CORS must come FIRST — before express.json() and before any route.
+// The browser sends an OPTIONS preflight before multipart POST/PUT/PATCH
+// requests; if CORS headers aren't present on that preflight response,
+// the browser blocks the actual request and you get "Failed to fetch"
+// with nothing in the server logs (the request never arrives).
+const allowedOrigins = [
+  process.env.Client_Url,
+  process.env.Admin_Url,
+  process.env.Guest_Url,
+].filter(Boolean); // drop any undefined/empty entries
+
 app.use(
   cors({
-    origin: [process.env.Client_Url, process.env.Admin_Url, process.env.Guest_Url],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+      // and any origin that matches the configured list.
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Explicitly respond to all OPTIONS preflights so upload routes work.
+app.options("*", cors());
+
+app.use(express.json());
 
 // ✅ Define API routes
 app.use('/attendance', attendanceRoutes);

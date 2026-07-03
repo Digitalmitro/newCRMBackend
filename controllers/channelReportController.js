@@ -59,18 +59,35 @@ exports.uploadMonthlyReport = async (req, res) => {
       return res.status(400).json({ success: false, message: "Valid year and month are required." });
     }
 
-    // Ensure the upload directory exists.
-    if (!fs.existsSync(REPORTS_DIR)) {
-      fs.mkdirSync(REPORTS_DIR, { recursive: true });
+    // Ensure the upload directory exists — do this defensively here
+    // rather than relying only on server.js startup, because on shared
+    // cPanel hosting the directory can get cleaned between restarts.
+    try {
+      if (!fs.existsSync(REPORTS_DIR)) {
+        fs.mkdirSync(REPORTS_DIR, { recursive: true });
+      }
+    } catch (mkdirErr) {
+      console.error("uploadMonthlyReport: could not create reports dir:", mkdirErr);
+      return res.status(500).json({
+        success: false,
+        message: `Server storage error: could not create upload directory. Details: ${mkdirErr.message}`,
+      });
     }
 
-    // Save file to disk with a unique timestamped name so multiple uploads
-    // in the same month don't clash on disk (fix #8).
     const sanitizedOriginal = (file.originalname || "report.pdf")
       .replace(/[^a-zA-Z0-9._-]/g, "_");
     const diskFileName = `${channelId}-${year}-${month}-${Date.now()}-${sanitizedOriginal}`;
     const diskPath = path.join(REPORTS_DIR, diskFileName);
-    fs.writeFileSync(diskPath, file.buffer);
+
+    try {
+      fs.writeFileSync(diskPath, file.buffer);
+    } catch (writeErr) {
+      console.error("uploadMonthlyReport: file write failed:", writeErr);
+      return res.status(500).json({
+        success: false,
+        message: `Server storage error: could not save file. Details: ${writeErr.message}`,
+      });
+    }
 
     // The public URL served by Express static middleware.
     const fileUrl = `/uploads/reports/${diskFileName}`;
