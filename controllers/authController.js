@@ -57,6 +57,18 @@ exports.createUserByAdmin = async (req, res) => {
       return res.status(400).json({ message: "Shift is required" });
     }
 
+    // Check for an existing active account with this email before hitting the
+    // unique index. This gives a clear error message instead of a generic 500.
+    const existing = await User.findOne({
+      email,
+      isDeleted: { $ne: true },
+    }).lean();
+    if (existing) {
+      return res.status(409).json({
+        message: `An employee with the email "${email}" already exists.`,
+      });
+    }
+
     const user = new User({
       name,
       email,
@@ -69,9 +81,12 @@ exports.createUserByAdmin = async (req, res) => {
 
     res.status(201).json({ message: "User created by admin" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "User creation failed", error: error.message });
+    // E11000 = MongoDB duplicate key — shouldn't reach here after the check
+    // above, but handles the race-condition edge case just in case.
+    if (error.code === 11000) {
+      return res.status(409).json({ message: "An employee with this email already exists." });
+    }
+    res.status(500).json({ message: "User creation failed", error: error.message });
     console.log(error);
   }
 };
@@ -438,6 +453,13 @@ exports.deleteUser = async (req, res) => {
     // Mark soft-deleted so JWTs are rejected by the auth middleware.
     user.isDeleted = true;
     user.deletedAt = new Date();
+
+    // Release the email address so it can be re-registered later.
+    // The User model has unique:true on email — without this, a deleted
+    // employee's email would be permanently blocked even though the account
+    // no longer exists from the admin's perspective.
+    user.email = `${user.email}__deleted__${Date.now()}`;
+
     await user.save();
 
     // Remove from every channel they were a member of.
