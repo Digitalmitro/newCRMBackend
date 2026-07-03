@@ -36,20 +36,39 @@ startScheduler(17, 18);
 startTaskOverdueScheduler();
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
-// Must be the VERY FIRST middleware — before express.json() and before every
-// route — so OPTIONS preflight requests get correct headers before anything
-// else runs. Using origin:'*' for this internal CRM because:
-//   1. The browser-side CORS mismatch between the OPTIONS response (open) and
-//      the POST response (origin-list) was causing "Failed to fetch" on file
-//      uploads. origin:'*' makes both responses identical — no mismatch.
-//   2. This is an intranet CRM, not a public API, so '*' is fine here.
+// Browser rule: origin:'*' and credentials:true cannot be used together.
+// When a request includes credentials (Authorization header with withCredentials,
+// or cookies), the server MUST reflect a specific origin — never a wildcard.
+// Fix: use a function that allows any subdomain of digitalmitro.info plus
+// localhost for dev. This works with credentials:true and doesn't rely on
+// env vars being correctly set.
 const corsOptions = {
-  origin: '*',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile app, Postman, curl, server-to-server)
+    if (!origin) return callback(null, true);
+
+    // Allow any subdomain of digitalmitro.info and localhost variants
+    const isAllowed =
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+      /^https?:\/\/([a-z0-9-]+\.)?digitalmitro\.info$/.test(origin);
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    }
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
+
+// Must be FIRST — before express.json() and all routes.
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Same config for preflight — no mismatch
+// Explicitly handle all OPTIONS preflights with the SAME config.
+// Using the same corsOptions object here is critical — a mismatch between
+// the preflight response and the actual response headers causes "Failed to fetch".
+app.options('*', cors(corsOptions));
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json());
@@ -68,14 +87,13 @@ app.use("/channels", channelChatsRoutes);
 app.use("/notepad", notesRoutes);
 app.use("/files", fileUploadRoutes);
 app.use("/client", clientRoutes);
-// New endpoints
 app.use("/profile", profileRoutes);
 app.use("/payslips", payslipRoutes);
 app.use("/salary-sheet", require("./routes/salarySheetRoutes"));
 app.use("/superadmin", require("./routes/superAdminRoutes"));
 app.use("/mobile", require("./routes/mobileRoutes"));
 
-// ✅ Serve uploaded files (reports etc.) from local disk
+// ✅ Serve uploaded files from local disk
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 const reportsDir = path.join(uploadsDir, "reports");
