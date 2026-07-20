@@ -9,7 +9,7 @@ const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const sendMail = require("../services/sendMail");
 const { getIo, emitToUser, isUserOnline, triggerSoftRefresh } = require("../utils/socket");
-const { getAdminScope } = require("../utils/adminScope");
+const { getAdminScope, getAdminIdsForChannelScope } = require("../utils/adminScope");
 
 const VALID_STATUSES = ["Assigned", "Acknowledged", "Completed"];
 const VALID_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -445,14 +445,25 @@ const getAccessibleChannel = async (channelId, userId) => {
 };
 
 const getAdminIdsForChannel = async (channel) => {
-  const admins = await Admin.find({}, "_id").lean();
-  if (admins.length === 0) return [];
-  const memberSet = new Set((channel.members || []).map((id) => id?.toString()));
-  const inChannelAdmins = admins
-    .map((admin) => admin?._id?.toString())
-    .filter((id) => id && memberSet.has(id));
-  if (inChannelAdmins.length > 0) return inChannelAdmins;
-  return admins.map((admin) => admin._id.toString());
+  // Union of (a) admins who are explicit members of this channel, and
+  // (b) admins whose scope covers this channel — superadmin, allChannels,
+  // or an allowedChannels entry — even without explicit membership. (b)
+  // mirrors exactly who can already see this channel's tasks via
+  // getAccessibleChannel above.
+  //
+  // Bug fix: this used to fall back to *every* admin in the system whenever
+  // a channel happened to have zero admin members, which is what caused
+  // unrelated (including brand-new) admins to be notified about every
+  // channel's task activity regardless of their scope.
+  const memberIds = [
+    ...new Set((channel.members || []).map((id) => id?.toString()).filter(Boolean)),
+  ];
+  const memberAdmins = memberIds.length
+    ? await Admin.find({ _id: { $in: memberIds } }, "_id").lean()
+    : [];
+  const memberAdminIds = memberAdmins.map((admin) => admin._id.toString());
+  const scopedIds = await getAdminIdsForChannelScope(channel._id);
+  return [...new Set([...memberAdminIds, ...scopedIds])];
 };
 
 // Thin wrapper kept for the existing call sites below — the real logic

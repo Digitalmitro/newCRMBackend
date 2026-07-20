@@ -27,4 +27,53 @@ const getAdminScope = async (userId) => {
   };
 };
 
-module.exports = { getAdminScope };
+/**
+ * The reverse of getAdminScope: given one employee, returns the _id strings
+ * of every admin who is in scope for that employee (superadmin, or
+ * allEmployees !== false, or explicitly listed in that admin's
+ * allowedEmployees) — i.e. exactly the admins for whom this employee already
+ * shows up in getAllUsers / getAllConcerns / the attendance list.
+ *
+ * Used to fan out notifications (concern submitted, callback created, ...)
+ * to the same audience that can already see the underlying record, instead
+ * of blasting every admin in the system regardless of their scope.
+ *
+ * @param {string} employeeId
+ * @param {string|null} excludeId - an id to leave out of the result (e.g. the actor)
+ */
+const getAdminIdsForEmployee = async (employeeId, excludeId = null) => {
+  const admins = await Admin.find({}, "role allEmployees allowedEmployees").lean();
+  const empId = employeeId?.toString();
+  const excluded = excludeId?.toString();
+  return admins
+    .filter((admin) => {
+      if (admin.role === "superadmin") return true;
+      if (admin.allEmployees !== false) return true;
+      return (admin.allowedEmployees || []).some((id) => id.toString() === empId);
+    })
+    .map((admin) => admin._id.toString())
+    .filter((id) => id !== excluded);
+};
+
+/**
+ * Same idea as getAdminIdsForEmployee, scoped to channel visibility
+ * (allChannels / allowedChannels) instead of employee visibility.
+ *
+ * @param {string} channelId
+ * @param {string|null} excludeId - an id to leave out of the result (e.g. the actor)
+ */
+const getAdminIdsForChannelScope = async (channelId, excludeId = null) => {
+  const admins = await Admin.find({}, "role allChannels allowedChannels").lean();
+  const chId = channelId?.toString();
+  const excluded = excludeId?.toString();
+  return admins
+    .filter((admin) => {
+      if (admin.role === "superadmin") return true;
+      if (admin.allChannels !== false) return true;
+      return (admin.allowedChannels || []).some((id) => id.toString() === chId);
+    })
+    .map((admin) => admin._id.toString())
+    .filter((id) => id !== excluded);
+};
+
+module.exports = { getAdminScope, getAdminIdsForEmployee, getAdminIdsForChannelScope };

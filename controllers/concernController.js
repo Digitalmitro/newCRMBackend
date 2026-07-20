@@ -40,10 +40,11 @@ const submitConcern = async (req, res) => {
 
     const reporter = await resolveUserEntity(user_id);
     const reporterName = reporter?.name || "User";
-    const admins = await Admin.find({}, "_id").lean();
-    const adminIds = admins
-      .map((admin) => admin?._id?.toString())
-      .filter((id) => id && id !== user_id.toString());
+    // Only notify admins who are actually in scope for this employee (same
+    // rule getAllConcerns already uses to decide who can see the concern) —
+    // this used to notify every admin in the system regardless of scope.
+    const { getAdminIdsForEmployee } = require("../utils/adminScope");
+    const adminIds = await getAdminIdsForEmployee(user_id, user_id);
 
     if (adminIds.length > 0) {
       const { notifyUsers } = require("../utils/notifyUsers");
