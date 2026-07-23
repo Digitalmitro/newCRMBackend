@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Digital Mitro</title>
+<style>
+  :root {
+    --ink: #1e2430;
+    --muted: #5b6472;
+    --line: #e4e7ec;
+    --bg: #ffffff;
+    --accent: #3452eb;
+    --panel: #f7f8fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.65;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.page { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .meta { color: var(--muted); font-size: 14px; }
+  h2 { font-size: 19px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  p { margin: 0 0 14px; color: var(--ink); }
+  ul { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  .callout {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 20px 0;
+    font-size: 15px;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.02em; }
+  footer.page { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <h1>Privacy Policy</h1>
+    <div class="meta">Digital Mitro CRM — web portals and mobile app · Last updated: 23 July 2026</div>
+  </header>
+
+  <p>This Privacy Policy explains how Digital Mitro ("we", "us", "our") collects, uses, shares, and protects information through the Digital Mitro CRM system — the Admin, Employee, and Client web portals, and the Digital Mitro mobile app (together, the "Service"). It applies to admins, employees, and clients who use the Service, and to the business contacts (leads and callback details) that employees enter into it.</p>
+
+  <div class="callout">
+    Digital Mitro is an internal business tool: accounts for Admins and Employees are created by a SuperAdmin — there is no public sign-up for these roles. Client accounts may self-register through the Client portal. If you need an account and don't have one, see <a href="#contact">Contact Us</a> below.
+  </div>
+
+  <h2>1. Information We Collect</h2>
+
+  <h3>Account information</h3>
+  <p>When an account is created (by a SuperAdmin/Admin, or by self-registration for Client accounts), we collect: name, email address, phone number, a hashed password, and, optionally, a profile photo and job description.</p>
+
+  <h3>Attendance data</h3>
+  <p>When an employee clocks in or out, we record the timestamp and the device's IP address. We do not collect GPS or precise location data for attendance.</p>
+
+  <h3>Messages and files</h3>
+  <p>Direct messages, channel/group messages, and any files, images, or documents shared in them (including task attachments and monthly task reports). Files are stored either with our storage provider (Cloudinary) or on our own server, depending on the type.</p>
+
+  <h3>HR and payroll documents</h3>
+  <p>Payslips and salary sheets that Admins upload for employees. These are only accessible to the employee they belong to and to authorized Admins.</p>
+
+  <h3>Business contact (lead) data</h3>
+  <p>Employees may enter details about the business's own leads and customers — name, email, phone, address, country, and notes — when logging callbacks, sales, or transfers. This data is about the business's contacts, not about the employee entering it, and is collected on behalf of, and controlled by, the business.</p>
+
+  <h3>Notification data</h3>
+  <p>A push-notification token (via Firebase Cloud Messaging) so the app can deliver alerts for messages, tasks, callbacks, and concerns you have permission to see.</p>
+
+  <h3>Concerns and requests</h3>
+  <p>Text and dates submitted through the Concerns feature (e.g. leave requests, punch-correction requests).</p>
+
+  <h2>2. How We Use Information</h2>
+  <ul>
+    <li>To provide core features: authentication, attendance tracking, task and channel management, chat, payroll document delivery, and lead/callback tracking.</li>
+    <li>To send in-app, push, and email notifications about activity relevant to your role and permissions (e.g. a new task, a callback, a concern).</li>
+    <li>To maintain the security of accounts and investigate misuse.</li>
+    <li>To generate attendance, sales, and performance reports for Admins and SuperAdmins, scoped to what their role and permissions allow.</li>
+  </ul>
+  <p>We do not use your information for advertising, and we do not sell personal information to third parties.</p>
+
+  <h2>3. Who We Share Information With</h2>
+  <p>We share information only with the service providers that help us run the Service, and only as needed for that purpose:</p>
+  <table>
+    <tr><th>Provider</th><th>Purpose</th></tr>
+    <tr><td>MongoDB Atlas</td><td>Database hosting for all application data</td></tr>
+    <tr><td>Cloudinary</td><td>Storage and delivery of images, videos, and file attachments</td></tr>
+    <tr><td>Google Firebase Cloud Messaging</td><td>Delivering push notifications to the mobile app</td></tr>
+    <tr><td>Google (Gmail SMTP)</td><td>Sending transactional emails (e.g. notifications, OTP codes)</td></tr>
+  </table>
+  <p>We may also disclose information if required by law, or to protect the rights, property, or safety of Digital Mitro, our users, or others.</p>
+
+  <h2>4. Data Retention</h2>
+  <p>We retain account and business data for as long as the account is active, and for a reasonable period afterward for legitimate business purposes such as payroll records, audit trails, and legal or regulatory compliance. When you request deletion (see below), we delete what we can while retaining only what we're required to for those reasons — see our <a href="/legal/delete-account.html">Account &amp; Data Deletion</a> page for details.</p>
+
+  <h2>5. Data Security</h2>
+  <p>Passwords are stored hashed, not in plain text. Access to administrative functions and to other people's data is controlled by role-based permissions, so an Admin only sees what their SuperAdmin has scoped them to see. Connections to the Service are encrypted in transit. No system is perfectly secure, and we can't guarantee absolute security, but we work to protect information against unauthorized access, alteration, or loss.</p>
+
+  <h2>6. Your Rights and Choices</h2>
+  <ul>
+    <li><strong>Access and correction:</strong> you can review and update most of your own profile information from the Settings screen in the app, or ask your Admin to do so.</li>
+    <li><strong>Deletion:</strong> you can request deletion of your account and associated data at any time — see our <a href="/legal/delete-account.html">Account &amp; Data Deletion</a> page.</li>
+    <li><strong>Notifications:</strong> push notification permissions can be managed from your device's settings.</li>
+  </ul>
+  <p>If you are located in India, these rights are consistent with the Digital Personal Data Protection Act, 2023. If you are located elsewhere, you may have additional rights under your local law; contact us and we'll do our best to help.</p>
+
+  <h2>7. Children's Privacy</h2>
+  <p>The Service is a workplace tool intended for use by employees, admins, and business clients, and is not directed at, or intended for use by, children. We do not knowingly collect information from anyone under 18.</p>
+
+  <h2>8. International Data Transfers</h2>
+  <p>Our service providers may store or process data on servers located outside of India. Where this happens, we rely on those providers' own safeguards for cross-border data transfer.</p>
+
+  <h2>9. Changes to This Policy</h2>
+  <p>We may update this policy from time to time. If we make material changes, we'll update the "Last updated" date above and, where appropriate, notify users in-app.</p>
+
+  <h2 id="contact">10. Contact Us</h2>
+  <p>Questions about this policy, or about your data? Email us at <a href="mailto:digitalmitrous@gmail.com">digitalmitrous@gmail.com</a>.</p>
+
+  <footer class="page">
+    Digital Mitro CRM · <a href="/legal/terms-and-conditions.html">Terms &amp; Conditions</a> · <a href="/legal/delete-account.html">Account &amp; Data Deletion</a>
+  </footer>
+
+</div>
+</body>
+</html>

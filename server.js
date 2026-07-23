@@ -100,6 +100,16 @@ const reportsDir = path.join(uploadsDir, "reports");
 if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
 app.use("/uploads", express.static(uploadsDir));
 
+// ✅ Serve legal pages (Privacy Policy, Terms & Conditions, Account
+// Deletion) — required for Play Store submission. Short top-level aliases
+// redirect to the actual files so there's a clean URL to put in Play
+// Console and the app's Settings screen.
+const legalDir = path.join(__dirname, "public", "legal");
+app.use("/legal", express.static(legalDir));
+app.get("/privacy-policy", (req, res) => res.redirect("/legal/privacy-policy.html"));
+app.get("/terms-and-conditions", (req, res) => res.redirect("/legal/terms-and-conditions.html"));
+app.get("/delete-account", (req, res) => res.redirect("/legal/delete-account.html"));
+
 // ✅ Basic API health check
 app.get('/', (req, res) => {
   res.status(200).json({ message: "🚀 Welcome to CRM Server" });
