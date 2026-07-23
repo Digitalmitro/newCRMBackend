@@ -9,7 +9,7 @@ const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const sendMail = require("../services/sendMail");
 const { getIo, emitToUser, isUserOnline, triggerSoftRefresh } = require("../utils/socket");
-const { getAdminScope, getAdminIdsForChannelScope } = require("../utils/adminScope");
+const { getAdminScope, getAdminIdsForChannelScope, filterAdminIdsByPermission } = require("../utils/adminScope");
 
 const VALID_STATUSES = ["Assigned", "Acknowledged", "Completed"];
 const VALID_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -451,10 +451,14 @@ const getAdminIdsForChannel = async (channel) => {
   // mirrors exactly who can already see this channel's tasks via
   // getAccessibleChannel above.
   //
-  // Bug fix: this used to fall back to *every* admin in the system whenever
-  // a channel happened to have zero admin members, which is what caused
-  // unrelated (including brand-new) admins to be notified about every
-  // channel's task activity regardless of their scope.
+  // Bug fix #1: this used to fall back to *every* admin in the system
+  // whenever a channel happened to have zero admin members, which is what
+  // caused unrelated (including brand-new) admins to be notified about
+  // every channel's task activity regardless of their scope.
+  //
+  // Bug fix #2: being in scope isn't enough on its own either — an admin
+  // also needs to actually have the Tasks page permission, or they'd get
+  // emailed about task activity they don't even have a page to view.
   const memberIds = [
     ...new Set((channel.members || []).map((id) => id?.toString()).filter(Boolean)),
   ];
@@ -463,7 +467,8 @@ const getAdminIdsForChannel = async (channel) => {
     : [];
   const memberAdminIds = memberAdmins.map((admin) => admin._id.toString());
   const scopedIds = await getAdminIdsForChannelScope(channel._id);
-  return [...new Set([...memberAdminIds, ...scopedIds])];
+  const combined = [...new Set([...memberAdminIds, ...scopedIds])];
+  return filterAdminIdsByPermission(combined, "tasks", "access");
 };
 
 // Thin wrapper kept for the existing call sites below — the real logic

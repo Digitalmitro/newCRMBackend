@@ -76,4 +76,31 @@ const getAdminIdsForChannelScope = async (channelId, excludeId = null) => {
     .filter((id) => id !== excluded);
 };
 
-module.exports = { getAdminScope, getAdminIdsForEmployee, getAdminIdsForChannelScope };
+/**
+ * Filters a list of admin ids down to those who actually have the given
+ * permission (or are superadmin, or have no permissions object set at all —
+ * same legacy-account fallback requirePermission uses). Meant to be layered
+ * on top of getAdminIdsForEmployee / getAdminIdsForChannelScope: being in
+ * scope for an employee/channel is necessary but not sufficient — the admin
+ * also needs to actually have access to the relevant page (e.g. "callbacks"
+ * -> Sidebar Access: Callbacks) before it makes sense to email them about it.
+ *
+ * @param {string[]} adminIds
+ * @param {string} resource - e.g. "callbacks", "concern", "tasks"
+ * @param {string} action - e.g. "access"
+ */
+const filterAdminIdsByPermission = async (adminIds, resource, action) => {
+  if (!adminIds?.length) return [];
+  const { adminHasPermission } = require("../middlewares/permissionMiddleware");
+  const admins = await Admin.find({ _id: { $in: adminIds } }, "role permissions").lean();
+  return admins
+    .filter((admin) => adminHasPermission(admin, resource, action))
+    .map((admin) => admin._id.toString());
+};
+
+module.exports = {
+  getAdminScope,
+  getAdminIdsForEmployee,
+  getAdminIdsForChannelScope,
+  filterAdminIdsByPermission,
+};

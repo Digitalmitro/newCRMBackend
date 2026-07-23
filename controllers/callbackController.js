@@ -40,11 +40,13 @@ exports.createCallback = async (req, res) => {
     // notify path (in-app + push + offline email) as concerns/tasks.
     try {
       const creator = await RegisteruserModal.findById(userId).select("name").lean();
-      // Only notify admins who are actually in scope for this employee,
-      // same rule the employee list/concern list already use — this used
-      // to notify every admin in the system regardless of scope.
-      const { getAdminIdsForEmployee } = require("../utils/adminScope");
-      const adminIds = await getAdminIdsForEmployee(userId, userId);
+      // Only notify admins who are in scope for this employee AND actually
+      // have access to the Callbacks page — being in scope isn't enough on
+      // its own; this used to notify every admin in the system regardless
+      // of either.
+      const { getAdminIdsForEmployee, filterAdminIdsByPermission } = require("../utils/adminScope");
+      let adminIds = await getAdminIdsForEmployee(userId, userId);
+      adminIds = await filterAdminIdsByPermission(adminIds, "callbacks", "access");
       if (adminIds.length > 0) {
         const { notifyUsers } = require("../utils/notifyUsers");
         await notifyUsers({

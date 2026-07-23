@@ -1,5 +1,27 @@
 const Admin = require("../models/Admin");
 
+// Pure check: does this admin doc (needs only role + permissions) have a
+// given permission? Mirrors requirePermission's rules exactly — superadmin
+// bypasses everything, admins with no permissions object at all (accounts
+// created before this system existed) are treated as fully permitted, and
+// otherwise the specific resource/action must be explicitly true.
+// Exported so callers outside this middleware (e.g. notification fan-out in
+// utils/adminScope.js) can apply the identical rule — an admin should never
+// be emailed about something they don't have permission to even see.
+const adminHasPermission = (admin, resource, action) => {
+  if (!admin) return true;
+  if (admin.role === "superadmin") return true;
+
+  const hasPermissionsSet = admin.permissions &&
+    Object.keys(admin.permissions).length > 0 &&
+    Object.values(admin.permissions).some(
+      (g) => Object.values(g).some((v) => v === true || v === false)
+    );
+  if (!hasPermissionsSet) return true;
+
+  return admin.permissions?.[resource]?.[action] === true;
+};
+
 // Returns true if the admin has a specific permission OR is superadmin.
 // Usage: requirePermission("task", "create")
 const requirePermission = (resource, action) => async (req, res, next) => {
@@ -12,22 +34,7 @@ const requirePermission = (resource, action) => async (req, res, next) => {
     // Not an admin (employee or client) — let them through, no permission restrictions apply
     if (!admin) return next();
 
-    // Superadmin bypasses all permission checks
-    if (admin.role === "superadmin") return next();
-
-    // Safety fallback: if the admin has no permissions field set at all
-    // (old accounts created before this system), grant full access.
-    const hasPermissionsSet = admin.permissions &&
-      Object.keys(admin.permissions).length > 0 &&
-      Object.values(admin.permissions).some(
-        (g) => Object.values(g).some((v) => v === true || v === false)
-      );
-    if (!hasPermissionsSet) return next();
-
-    const allowed = admin.permissions?.[resource]?.[action];
-    // Treat both explicit false AND missing key the same way (denied).
-    // The distinction matters for the error message but not the outcome.
-    if (!allowed) {
+    if (!adminHasPermission(admin, resource, action)) {
       return res.status(403).json({
         success: false,
         message: `You don't have permission to ${action} ${resource}. Ask a SuperAdmin to grant this access in Manage Admins.`,
@@ -57,4 +64,4 @@ const requireSuperAdmin = async (req, res, next) => {
   }
 };
 
-module.exports = { requirePermission, requireSuperAdmin };
+module.exports = { requirePermission, requireSuperAdmin, adminHasPermission };
