@@ -209,7 +209,13 @@ const approveConcern = async (req, res) => {
         });
         await Notification.updateOne({ _id: approveNotification._id }, { $set: { isRead: true } });
       }
-      await triggerSoftRefresh("Concern_Employee");
+      // Same "Concern" type submitConcern broadcasts, and what Concern.jsx's
+      // list-refresh listener actually checks for — was "Concern_Employee"
+      // here, a different string the frontend never matched, so other
+      // admins' concern list (and the sidebar badge, which doesn't filter
+      // by type but is fixed for good measure) didn't live-update on
+      // approve/reject.
+      await triggerSoftRefresh("Concern");
       return res.status(200).json({
         message: "Leave approved and attendance updated",
         concern,
@@ -312,7 +318,7 @@ const approveConcern = async (req, res) => {
       );
     }
     // console.log("approved")
-    await triggerSoftRefresh("Concern_Employee");
+    await triggerSoftRefresh("Concern");
     res.status(200).json({
       message: "Concern approved and attendance updated",
       concern,
@@ -361,7 +367,7 @@ const rejectConcern = async (req, res) => {
         { $set: { isRead: true } }
       );
     }
-    await triggerSoftRefresh("Concern_Employee");
+    await triggerSoftRefresh("Concern");
     res.status(200).json({ message: "Concern rejected successfully", concern });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
