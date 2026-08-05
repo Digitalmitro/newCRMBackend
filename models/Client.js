@@ -18,6 +18,9 @@ const clientSchema = new mongoose.Schema(
     },
     avatar: { type: String, default: "" },
     fcmToken: { type: String, default: "" }, // Firebase push notification token
+    // Password-reset OTP — same pattern as Admin's login OTP (see authController.js)
+    otp: { type: String, default: null },
+    otpExpiration: { type: Date, default: null },
   },
   {
     timestamps: true,
