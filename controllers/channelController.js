@@ -105,12 +105,12 @@ exports.updateChannel = async (req, res) => {
     const channel = await Channel.findById(channelId);
     if (!channel) return res.status(404).json({ error: "Channel not found" });
 
-    // Only the owner can update.
-    if (channel.owner.toString() !== userId.toString()) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to update this channel" });
-    }
+    // Bug fix: this used to require req.user to be channel.owner specifically,
+    // completely bypassing the channel.edit permission a SuperAdmin grants via
+    // Manage Admins — an admin correctly granted "Edit channels" still got a
+    // 403 on every channel they didn't personally create. requirePermission
+    // on the route is the actual authorization gate now, same as
+    // deleteChannel already (correctly) relies on it alone.
 
     if (typeof name === "string" && name.trim()) channel.name = name.trim();
     if (typeof description === "string") channel.description = description;
@@ -158,11 +158,8 @@ exports.uploadChannelImage = async (req, res) => {
     const channel = await Channel.findById(channelId);
     if (!channel) return res.status(404).json({ error: "Channel not found" });
 
-    if (channel.owner.toString() !== userId.toString()) {
-      return res
-        .status(403)
-        .json({ error: "Only the channel owner can update the image" });
-    }
+    // Same bug fix as updateChannel — requirePermission("channel", "edit")
+    // on the route is the actual gate now, not channel ownership.
 
     const file = req.file;
     if (!file) {
@@ -200,11 +197,8 @@ exports.removeMember = async (req, res) => {
     const channel = await Channel.findById(channelId);
     if (!channel) return res.status(404).json({ error: "Channel not found" });
 
-    if (channel.owner?.toString() !== requesterId?.toString()) {
-      return res
-        .status(403)
-        .json({ error: "Only the channel owner can remove members" });
-    }
+    // Same bug fix as updateChannel — requirePermission("channel", "edit")
+    // on the route is the actual gate now, not channel ownership.
 
     const normalizedMembers = normalizeMemberIds(channel.members);
     const beforeCount = normalizedMembers.length;

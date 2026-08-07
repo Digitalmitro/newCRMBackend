@@ -15,12 +15,13 @@ router.get("/tags/options", channelController.getTagOptions);
 router.get("/:id", channelController.getChannelById);
 router.delete("/:id", authMiddleware, requirePermission("channel", "delete"), channelController.deleteChannel);
 router.put("/:id", authMiddleware, requirePermission("channel", "edit"), channelController.updateChannel);
-router.post("/:id/remove-member", authMiddleware, channelController.removeMember);
+router.post("/:id/remove-member", authMiddleware, requirePermission("channel", "edit"), channelController.removeMember);
 
 // Channel image upload — feature #13
 router.post(
   "/:id/image",
   authMiddleware,
+  requirePermission("channel", "edit"),
   upload.single("image"),
   channelController.uploadChannelImage
 );
