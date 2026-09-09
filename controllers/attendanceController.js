@@ -31,7 +31,7 @@ exports.punchIn = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const today = getAttendanceDate(); // 5am cutoff — before 5am = previous day
+    const today = getAttendanceDate(); // 9am cutoff — before 5am = previous day
     const punchInTime = moments.tz(TIMEZONE);
 
     let attendance = await Attendance.findOne({
@@ -118,11 +118,11 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    let today = getAttendanceDate(); // 5am cutoff
+    let today = getAttendanceDate(); // 9am cutoff
     let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
 
     // Fallback: if no open record for today, check yesterday —
-    // night shift workers may have punched in before the 5am cutoff boundary
+    // night shift workers may have punched in before the 9am cutoff boundary
     if (!attendance || !attendance.isPunchedIn) {
       const yesterday = moments.tz(TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
       if (yesterday !== today) {
@@ -186,7 +186,7 @@ exports.updateLeaveStatus = async (req, res) => {
     }
 
     // Check if attendance record exists
-    const today = getAttendanceDate(); // 5am cutoff
+    const today = getAttendanceDate(); // 9am cutoff
     const attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -228,7 +228,7 @@ exports.handlePunch = async (req, res) => {
   const { date, punchIn, punchOut, fix } = req.body; // Optional fix values
 
   try {
-    const today = date || getAttendanceDate(); // 5am cutoff
+    const today = date || getAttendanceDate(); // 9am cutoff
     let attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -312,7 +312,7 @@ exports.getUserAttendance = async (req, res) => {
   let startDate, endDate;
 
   if (range === "today") {
-    startDate = getAttendanceDate(); // 5am cutoff
+    startDate = getAttendanceDate(); // 9am cutoff
     endDate = startDate;
   } else if (range === "this_month") {
     startDate = moment().startOf("month").format("YYYY-MM-DD");
