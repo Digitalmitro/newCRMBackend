@@ -31,7 +31,7 @@ exports.punchIn = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const today = getAttendanceDate(); // 9am cutoff — before 5am = previous day
+    const today = getAttendanceDate(); // 5am cutoff — before 5am = previous day
     const punchInTime = moments.tz(TIMEZONE);
 
     let attendance = await Attendance.findOne({
@@ -118,11 +118,11 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    let today = getAttendanceDate(); // 9am cutoff
+    let today = getAttendanceDate(); // 5am cutoff
     let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
 
     // Fallback: if no open record for today, check yesterday —
-    // night shift workers may have punched in before the 9am cutoff boundary
+    // night shift workers may have punched in before the 5am cutoff boundary
     if (!attendance || !attendance.isPunchedIn) {
       const yesterday = moments.tz(TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
       if (yesterday !== today) {
@@ -186,7 +186,7 @@ exports.updateLeaveStatus = async (req, res) => {
     }
 
     // Check if attendance record exists
-    const today = getAttendanceDate(); // 9am cutoff
+    const today = getAttendanceDate(); // 5am cutoff
     const attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -228,7 +228,7 @@ exports.handlePunch = async (req, res) => {
   const { date, punchIn, punchOut, fix } = req.body; // Optional fix values
 
   try {
-    const today = date || getAttendanceDate(); // 9am cutoff
+    const today = date || getAttendanceDate(); // 5am cutoff
     let attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -312,7 +312,7 @@ exports.getUserAttendance = async (req, res) => {
   let startDate, endDate;
 
   if (range === "today") {
-    startDate = getAttendanceDate(); // 9am cutoff
+    startDate = getAttendanceDate(); // 5am cutoff
     endDate = startDate;
   } else if (range === "this_month") {
     startDate = moment().startOf("month").format("YYYY-MM-DD");
@@ -659,10 +659,39 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
       existingRecords.map((r) => r.user_id?._id?.toString() || r.user_id?.toString())
     );
 
-    // Build synthetic records for employees who didn't clock in
-    const syntheticRecords = allEmployees
-      .filter((emp) => !recordedIds.has(emp._id.toString()))
-      .map((emp) => ({
+    // Night-shift carry-over: someone who punched in yesterday and hasn't
+    // punched out yet is still on that shift, not absent from today - they
+    // just haven't started a *new* attendance day yet. Without this, the
+    // day boundary alone would mark them absent the moment "today" begins,
+    // even though they're actively clocked in.
+    const stillAbsentEmployees = allEmployees.filter((emp) => !recordedIds.has(emp._id.toString()));
+    let overnightRecordsByUserId = new Map();
+    if (stillAbsentEmployees.length > 0) {
+      const yesterdayStr = moments.tz(targetDateStr, "YYYY-MM-DD", TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
+      const { start: yesterdayStart, end: yesterdayEnd } = getAttendanceDayBounds(yesterdayStr);
+      const openOvernightRecords = await Attendance.find({
+        currentDate: { $gte: yesterdayStart, $lte: yesterdayEnd },
+        user_id: { $in: stillAbsentEmployees.map((e) => e._id) },
+        isPunchedIn: true,
+      })
+        .populate("user_id")
+        .select("-__v")
+        .lean();
+      overnightRecordsByUserId = new Map(
+        openOvernightRecords.map((r) => [r.user_id?._id?.toString() || r.user_id?.toString(), r])
+      );
+    }
+
+    // Build synthetic records for employees who didn't clock in - except
+    // those still mid-shift from the night before, who get their actual
+    // open record instead (flagged so the frontend can show "still
+    // clocked in from yesterday" rather than presenting it as today's).
+    const syntheticRecords = stillAbsentEmployees.map((emp) => {
+      const overnightRecord = overnightRecordsByUserId.get(emp._id.toString());
+      if (overnightRecord) {
+        return { ...overnightRecord, isOvernightCarryover: true };
+      }
+      return {
         _id: `synthetic_${emp._id}`,
         user_id: emp,
         currentDate: today,
@@ -676,7 +705,8 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
         leaveApproved: false,
         leaveStatus: null,
         isSynthetic: true, // flag so frontend knows this is auto-generated
-      }));
+      };
+    });
 
     const allRecords = [...existingRecords, ...syntheticRecords];
 
