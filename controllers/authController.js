@@ -418,7 +418,7 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, phone, type, shift, employeeType, jobDescription } = req.body;
+    const { name, email, phone, type, shift, employeeType, jobDescription, password } = req.body;
     const shiftValue = shift || type;
     const user = await User.findById(req.params.id);
 
@@ -433,6 +433,13 @@ exports.updateUser = async (req, res) => {
     }
     if (jobDescription !== undefined) {
       user.jobDescription = jobDescription;
+    }
+    // Only touch the password if a new one was actually provided - an
+    // empty/missing field means "leave it as is", not "clear it". Assigning
+    // the plain value here is intentional: the pre("save") hook above
+    // hashes it automatically, so hashing it again here would double-hash it.
+    if (typeof password === "string" && password.trim().length > 0) {
+      user.password = password;
     }
 
     const updatedUser = await user.save();
