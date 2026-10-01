@@ -173,7 +173,8 @@ const sendMessage = async (req, res) => {
           receiverEntity.fcmToken,
           `New message from ${senderName}`,
           previewLine,
-          { type: "dm", senderId: sender?.toString(), senderName }
+          { type: "dm", senderId: sender?.toString(), senderName },
+          senderEntity?.avatar || null
         );
       }
       if (!receiverIsOnline && receiverEntity?.email) {

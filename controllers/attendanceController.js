@@ -7,7 +7,7 @@ const { triggerSoftRefresh } = require("../utils/socket");
 const { checkWeekendOrHoliday } = require("../utils/weekHoliday");
 const moment = require("moment");
 const moments = require("moment-timezone");
-const { getAttendanceDate, TIMEZONE } = require("../utils/attendanceDay");
+const { getAttendanceDate, getAttendanceDayBounds, TIMEZONE } = require("../utils/attendanceDay");
 
 // Helper function to calculate working time in minutes
 const calculateWorkingTime = (punchIn, punchOut) => {
@@ -523,8 +523,15 @@ exports.getAttendanceListforadmin = async (req, res) => {
       return res.status(200).json({ message: "Data Collected Successfully", data: existingData });
     }
 
-    // Fill missing days up to today
-    const today = moment.tz("Asia/Kolkata").endOf("day");
+    // Fill missing days up to today - capped at the current *attendance*
+    // day (5am cutover), not the plain calendar day. Bug fix: using the
+    // plain calendar day here meant that during the 12am-5am window, the
+    // new calendar day was already being filled with a synthetic Absent
+    // row, even though that attendance day hadn't started yet - a night-
+    // shift employee still clocked in from the evening before (correctly
+    // recorded under the previous attendance day) would show as absent for
+    // the new calendar day despite still being on shift.
+    const today = moment.tz(getAttendanceDate(), "YYYY-MM-DD", "Asia/Kolkata").endOf("day");
     const effectiveEnd = rangeEnd.isAfter(today) ? today.clone() : rangeEnd.clone();
 
     const recordedDays = new Set(
@@ -573,8 +580,13 @@ exports.getAttendanceListforadmin = async (req, res) => {
 exports.getAttendanceStatusforadmin = async (req, res) => {
   try {
     const userId = req.params.id;
-    const today = moment.tz("Asia/Kolkata").startOf("day").toDate();
-    const tomorrow = moment.tz("Asia/Kolkata").endOf("day").toDate();
+    // Bug fix: this used plain midnight-to-midnight IST bounds, but
+    // currentDate is stored per the 5am attendance-day cutoff (same as
+    // punchIn uses via getAttendanceDate) - so a night-shift employee still
+    // clocked in from before midnight had their open record fall entirely
+    // outside this window once the calendar flipped to a new day, and
+    // showed as "not punched in" despite being actively clocked in.
+    const { start: today, end: tomorrow } = getAttendanceDayBounds(getAttendanceDate());
 
     const attendanceRecord = await Attendance.findOne({
       user_id: userId,
@@ -627,7 +639,6 @@ exports.getAllAttendanceforadmin = async (req, res) => {
 exports.getTodaysAttendanceforadmin = async (req, res) => {
   try {
     const { getAdminScope } = require("../utils/adminScope");
-    const { getAttendanceDayBounds } = require("../utils/attendanceDay");
     const scope = await getAdminScope(req.user?.userId);
 
     // Optional ?date=YYYY-MM-DD — lets the mobile app's calendar picker

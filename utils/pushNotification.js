@@ -41,8 +41,13 @@ const initFirebase = () => {
  * @param {string} title - Notification title
  * @param {string} body  - Notification body
  * @param {object} data  - Extra key-value data payload (all values must be strings)
+ * @param {string} [imageUrl] - Channel image or sender/user avatar to show
+ *   as the notification's large icon (Android) / rich attachment (iOS 18+
+ *   with a Notification Service Extension - see note in _showLocalNotification
+ *   client-side for why this doesn't reliably show on older iOS versions
+ *   without one).
  */
-const sendPush = async (token, title, body, data = {}) => {
+const sendPush = async (token, title, body, data = {}, imageUrl = null) => {
   if (!token) return;
   const firebase = initFirebase();
   if (!firebase) {
@@ -50,14 +55,36 @@ const sendPush = async (token, title, body, data = {}) => {
     return;
   }
   try {
+    const hasImage = typeof imageUrl === "string" && imageUrl.trim().length > 0;
     const message = {
       token,
-      notification: { title, body },
+      notification: {
+        title,
+        body,
+        ...(hasImage ? { imageUrl } : {}),
+      },
+      // Always send imageUrl in data too (as a plain string field), even
+      // though it's also on `notification` above - the Flutter foreground
+      // handler reads message.data, not message.notification, since that's
+      // the only part guaranteed to arrive intact to app code.
       data: Object.fromEntries(
-        Object.entries(data).map(([k, v]) => [k, String(v)])
+        Object.entries({ ...data, ...(hasImage ? { imageUrl } : {}) }).map(
+          ([k, v]) => [k, String(v)]
+        )
       ),
-      android: { priority: "high" },
-      apns: { headers: { "apns-priority": "10" } },
+      android: {
+        priority: "high",
+        ...(hasImage ? { notification: { imageUrl } } : {}),
+      },
+      apns: {
+        headers: { "apns-priority": "10" },
+        ...(hasImage
+          ? {
+              payload: { aps: { "mutable-content": 1 } },
+              fcmOptions: { imageUrl },
+            }
+          : {}),
+      },
     };
     const response = await firebase.messaging().send(message);
     console.log(`[FCM] Sent: ${response}`);
@@ -73,10 +100,10 @@ const sendPush = async (token, title, body, data = {}) => {
 /**
  * Send push to multiple tokens at once.
  */
-const sendPushMultiple = async (tokens, title, body, data = {}) => {
+const sendPushMultiple = async (tokens, title, body, data = {}, imageUrl = null) => {
   const valid = (tokens || []).filter(Boolean);
   if (!valid.length) return;
-  await Promise.allSettled(valid.map((t) => sendPush(t, title, body, data)));
+  await Promise.allSettled(valid.map((t) => sendPush(t, title, body, data, imageUrl)));
 };
 
 module.exports = { sendPush, sendPushMultiple };

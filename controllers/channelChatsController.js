@@ -215,7 +215,8 @@ exports.sendChannelMessage = async (req, res) => {
               member.fcmToken,
               `New message in ${channelName}`,
               `${senderName}: ${previewLine}`,
-              { type: "channel", channelId: channelId?.toString(), senderName }
+              { type: "channel", channelId: channelId?.toString(), senderName },
+              channel?.image || null
             );
           }
           if (!isUserOnline(memberId) && member.email) {
@@ -252,7 +253,8 @@ exports.sendChannelMessage = async (req, res) => {
               mentioned.fcmToken,
               `${senderName} mentioned you in ${channelName}`,
               mentionPreview,
-              { type: "mention", channelId: channelId?.toString(), senderName }
+              { type: "mention", channelId: channelId?.toString(), senderName },
+              channel?.image || null
             );
           }
 
