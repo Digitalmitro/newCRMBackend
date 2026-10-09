@@ -1,5 +1,6 @@
 const schedule = require("node-schedule");
 const moment = require("moment");
+const { getAttendanceDate, TIMEZONE } = require("./attendanceDay");
 const Attendance = require("../models/Attendance");
 const User = require("../models/User");
 const { checkWeekendOrHoliday } = require("./weekHoliday")
@@ -7,7 +8,7 @@ const { checkWeekendOrHoliday } = require("./weekHoliday")
 // Function to update attendance
 const autoUpdateAttendance = async (shiftType) => {
   try {
-    const today = moment().format("YYYY-MM-DD");
+    const today = getAttendanceDate(); // IST attendance day (5am cutover)
     const holidayOrWeekend = checkWeekendOrHoliday(today);
 
     const users = await User.find({ type:shiftType });
@@ -51,10 +52,10 @@ const startCronJobs = async () => {
   console.log("🚀 Starting Cron Jobs...");
 
   // ✅ Day Shift: 9 AM
-  schedule.scheduleJob("0 9 * * *", () => autoUpdateAttendance("Day"));
+  schedule.scheduleJob({ rule: "0 9 * * *", tz: TIMEZONE }, () => autoUpdateAttendance("Day"));
 
   // ✅ Night Shift: 7 PM
-  schedule.scheduleJob("0 19 * * *", () => autoUpdateAttendance("Night"));
+  schedule.scheduleJob({ rule: "0 19 * * *", tz: TIMEZONE }, () => autoUpdateAttendance("Night"));
   // await autoUpdateAttendance("Day");
 
   console.log("✅ Cron Jobs Scheduled!");

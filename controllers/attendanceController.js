@@ -9,6 +9,19 @@ const moment = require("moment");
 const moments = require("moment-timezone");
 const { getAttendanceDate, getAttendanceDayBounds, TIMEZONE } = require("../utils/attendanceDay");
 
+// Lateness rule shared by punchIn and the admin views. Night 8:10pm / Day 10:40am.
+const computePunchStatus = (shiftType, punchMoment) => {
+  const h = punchMoment.hour();
+  const m = punchMoment.minute();
+  if (
+    (shiftType === "Day" && (h > 10 || (h === 10 && m > 40))) ||
+    (shiftType === "Night" && (h > 20 || (h === 20 && m > 10)))
+  ) {
+    return "Late";
+  }
+  return "On Time";
+};
+
 // Helper function to calculate working time in minutes
 const calculateWorkingTime = (punchIn, punchOut) => {
   const start = moment(punchIn, "HH:mm");
@@ -64,8 +77,16 @@ exports.punchIn = async (req, res) => {
       attendance.isPunchedIn = true;
       if (!attendance.firstPunchIn) {
         attendance.firstPunchIn = punchInTime.toDate();
+        // This row was a placeholder (the auto-absent cron creates one per
+        // employee before they clock in). First real punch-in must replace
+        // its "Absent" status, otherwise the admin sees them as absent
+        // while they are actively working.
+        attendance.status = computePunchStatus(user?.type, punchInTime);
+        attendance.shiftType = user?.type || attendance.shiftType;
+        attendance.ip = clientIp;
       }
       await attendance.save();
+      await triggerSoftRefresh("Attendence");
       return res
         .status(200)
         .json({ message: "Re-Punch In successful", data: attendance });
@@ -719,7 +740,15 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
       };
     });
 
-    const allRecords = [...existingRecords, ...syntheticRecords];
+    // Rows that already have a punch-in but still say "Absent" (placeholder
+    // rows from before this fix) - show their real status instead.
+    const fixStatus = (r) => {
+      if (r && r.punchIn && !r.isSynthetic && r.status === "Absent") {
+        return { ...r, status: computePunchStatus(r.shiftType, moments.tz(r.firstPunchIn || r.punchIn, TIMEZONE)) };
+      }
+      return r;
+    };
+    const allRecords = [...existingRecords, ...syntheticRecords].map(fixStatus);
 
     res.status(200).json({
       message: "Today's attendance data collected successfully",
