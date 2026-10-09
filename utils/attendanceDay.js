@@ -1,20 +1,18 @@
 const moment = require("moment-timezone");
 
 const TIMEZONE = "Asia/Kolkata";
-const DAY_START_HOUR = 5; // Reverted to 5am — 9am broke every normal
-// morning check-in (anyone clocking in before 9am, which is most people,
-// got filed under YESTERDAY's date, showing as absent today). The actual
-// ask was narrower: give night-shift workers still clocked in from the
-// night before more grace before they show as absent for the new day.
-// That needs a targeted fix in the absence check itself, not a global
-// shift of when "today" starts - see isStillOnOvernightShift below and
-// its use in the absence-marking logic.
+// The attendance day runs from DAY_START_HOUR (IST) to the same hour the next
+// day. Set to 9 because nobody clocks in before 9am. Anyone who clocks in
+// before this hour is filed under the PREVIOUS day, so lower this value if
+// early arrivals ever start. Open overnight shifts are handled separately by
+// the carry-over lookup in getTodaysAttendanceforadmin.
+const DAY_START_HOUR = 9;
 
 /**
  * Returns the "attendance date" for a given moment (or now if not provided).
- * If current time is before 5am, it belongs to the previous calendar day.
+ * If current time is before 9am, it belongs to the previous calendar day.
  * e.g. 3am on June 3rd → attendance date is June 2nd (night shift)
- *      6am on June 3rd → attendance date is June 3rd (day shift)
+ *      10am on June 3rd → attendance date is June 3rd (day shift)
  *
  * Returns a YYYY-MM-DD string in IST.
  */
@@ -28,7 +26,7 @@ const getAttendanceDate = (m) => {
 
 /**
  * Returns the start and end of an "attendance day" for a given date string.
- * Attendance day for "2026-06-03" = June 3rd 5:00am → June 4th 4:59:59am (IST)
+ * Attendance day for "2026-06-03" = June 3rd 9:00am → June 4th 8:59:59am (IST)
  */
 const getAttendanceDayBounds = (dateStr) => {
   const start = moment.tz(dateStr, "YYYY-MM-DD", TIMEZONE).hour(DAY_START_HOUR).startOf("hour");
