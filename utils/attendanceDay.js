@@ -25,12 +25,19 @@ const getAttendanceDate = (m) => {
 };
 
 /**
- * Returns the start and end of an "attendance day" for a given date string.
- * Attendance day for "2026-06-03" = June 3rd 9:00am → June 4th 8:59:59am (IST)
+ * Returns the query window for an attendance day's records.
+ *
+ * Attendance.currentDate is stored as midnight UTC of the "YYYY-MM-DD"
+ * attendance-date string (Mongoose casts the string to a Date at 00:00Z).
+ * So the window must be that UTC calendar day - NOT DAY_START_HOUR in IST.
+ * An IST-hour-based window only happened to contain 00:00Z while the start
+ * hour was before 05:30 IST; at 9am it excluded every record and made
+ * everyone look absent. Using the UTC day keeps this independent of
+ * DAY_START_HOUR.
  */
 const getAttendanceDayBounds = (dateStr) => {
-  const start = moment.tz(dateStr, "YYYY-MM-DD", TIMEZONE).hour(DAY_START_HOUR).startOf("hour");
-  const end = start.clone().add(1, "day").subtract(1, "second");
+  const start = moment.utc(dateStr, "YYYY-MM-DD").startOf("day");
+  const end = start.clone().add(1, "day").subtract(1, "millisecond");
   return { start: start.toDate(), end: end.toDate() };
 };
 
