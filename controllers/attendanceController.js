@@ -44,7 +44,7 @@ exports.punchIn = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const today = getAttendanceDate(); // 5am cutoff — before 5am = previous day
+    const today = getAttendanceDate(); // attendance-day cutoff (see DAY_START_HOUR)
     const punchInTime = moments.tz(TIMEZONE);
 
     let attendance = await Attendance.findOne({
@@ -139,11 +139,11 @@ exports.punchOut = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    let today = getAttendanceDate(); // 5am cutoff
+    let today = getAttendanceDate(); // attendance-day cutoff
     let attendance = await Attendance.findOne({ user_id: userId, currentDate: today });
 
     // Fallback: if no open record for today, check yesterday —
-    // night shift workers may have punched in before the 5am cutoff boundary
+    // night shift workers may have punched in before the attendance-day cutoff boundary
     if (!attendance || !attendance.isPunchedIn) {
       const yesterday = moments.tz(TIMEZONE).subtract(1, "day").format("YYYY-MM-DD");
       if (yesterday !== today) {
@@ -207,7 +207,7 @@ exports.updateLeaveStatus = async (req, res) => {
     }
 
     // Check if attendance record exists
-    const today = getAttendanceDate(); // 5am cutoff
+    const today = getAttendanceDate(); // attendance-day cutoff
     const attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -249,7 +249,7 @@ exports.handlePunch = async (req, res) => {
   const { date, punchIn, punchOut, fix } = req.body; // Optional fix values
 
   try {
-    const today = date || getAttendanceDate(); // 5am cutoff
+    const today = date || getAttendanceDate(); // attendance-day cutoff
     let attendance = await Attendance.findOne({
       user_id: userId,
       currentDate: today,
@@ -333,7 +333,7 @@ exports.getUserAttendance = async (req, res) => {
   let startDate, endDate;
 
   if (range === "today") {
-    startDate = getAttendanceDate(); // 5am cutoff
+    startDate = getAttendanceDate(); // attendance-day cutoff
     endDate = startDate;
   } else if (range === "this_month") {
     startDate = moment().startOf("month").format("YYYY-MM-DD");
@@ -377,8 +377,10 @@ exports.getUserAttendance = async (req, res) => {
       }
     }
 
-    // Fill missing days with Absent / Week-Off up to today
-    const today = moment.tz("Asia/Kolkata").endOf("day");
+    // Fill missing days with Absent / Week-Off up to the current *attendance*
+    // day (not the calendar day), so the new day isn't shown as Absent before
+    // it has started.
+    const today = moment.tz(getAttendanceDate(), "YYYY-MM-DD", "Asia/Kolkata").endOf("day");
     const user = await User.findById(userId).select("type").lean();
 
     const recordedDays = new Set(
@@ -545,8 +547,8 @@ exports.getAttendanceListforadmin = async (req, res) => {
     }
 
     // Fill missing days up to today - capped at the current *attendance*
-    // day (5am cutover), not the plain calendar day. Bug fix: using the
-    // plain calendar day here meant that during the 12am-5am window, the
+    // day (attendance-day cutover), not the plain calendar day. Bug fix: using the
+    // plain calendar day here meant that during the pre-cutover window, the
     // new calendar day was already being filled with a synthetic Absent
     // row, even though that attendance day hadn't started yet - a night-
     // shift employee still clocked in from the evening before (correctly
@@ -602,7 +604,7 @@ exports.getAttendanceStatusforadmin = async (req, res) => {
   try {
     const userId = req.params.id;
     // Bug fix: this used plain midnight-to-midnight IST bounds, but
-    // currentDate is stored per the 5am attendance-day cutoff (same as
+    // currentDate is stored per the attendance-day cutoff (same as
     // punchIn uses via getAttendanceDate) - so a night-shift employee still
     // clocked in from before midnight had their open record fall entirely
     // outside this window once the calendar flipped to a new day, and
@@ -666,7 +668,15 @@ exports.getTodaysAttendanceforadmin = async (req, res) => {
     // fetch any day's attendance, not just today. Defaults to today
     // exactly as before when omitted, so existing web usage is unaffected.
     const requestedDate = req.query?.date;
-    const targetDateStr = requestedDate || getAttendanceDate();
+    // The mobile app sends the phone's calendar date. Before the 9am cutover
+    // that date is an attendance day that hasn't started yet (everyone would
+    // show absent, night staff included), so clamp it to the current
+    // attendance day. Past dates are unaffected.
+    const currentAttendanceDate = getAttendanceDate();
+    const targetDateStr =
+      requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && requestedDate <= currentAttendanceDate
+        ? requestedDate
+        : currentAttendanceDate;
     const { start: today, end: tomorrow } = getAttendanceDayBounds(targetDateStr);
     const dayOfWeek = moments.tz(targetDateStr, "YYYY-MM-DD", TIMEZONE).day();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
