@@ -400,7 +400,7 @@ exports.getUserAttendance = async (req, res) => {
         syntheticRows.push({
           _id: `synthetic_${userId}_${dayStr}`,
           user_id: userId,
-          currentDate: cursor.clone().toDate(),
+          currentDate: moment.utc(dayStr, "YYYY-MM-DD").toDate(), // same UTC-midnight label as real rows
           shiftType: user?.type || "Day",
           status: isWeekend ? "Week-Off" : "Absent",
           workStatus: isWeekend ? "Week-Off" : "Absent",
@@ -571,7 +571,7 @@ exports.getAttendanceListforadmin = async (req, res) => {
         syntheticRows.push({
           _id: `synthetic_${userId}_${dayStr}`,
           user_id: userId,
-          currentDate: cursor.clone().toDate(),
+          currentDate: moment.utc(dayStr, "YYYY-MM-DD").toDate(), // same UTC-midnight label as real rows
           shiftType: "Day",
           status: isWeekend ? "Week-Off" : "Absent",
           workStatus: isWeekend ? "Week-Off" : "Absent",

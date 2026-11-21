@@ -156,17 +156,27 @@ const approveConcern = async (req, res) => {
 
     const { ConcernDate, concernType, ActualPunchIn, ActualPunchOut } = concern;
 
-    if (!ConcernDate) {
-      return res.status(400).json({ message: "Concern date is missing" });
-    }
-
-    const concernDateUTC = moment(ConcernDate).tz("Asia/Kolkata").format("YYYY-MM-DD");
+    // The date only matters for concerns that touch attendance (leave and
+    // missing-punch corrections). A general concern can be approved without
+    // one - it used to be rejected with "Concern date is missing".
+    const parsedConcernDate = ConcernDate
+      ? moment.tz(String(ConcernDate).slice(0, 10), "YYYY-MM-DD", true, "Asia/Kolkata")
+      : null;
+    const concernDateUTC = parsedConcernDate && parsedConcernDate.isValid()
+      ? parsedConcernDate.format("YYYY-MM-DD")
+      : null;
 
     // ── LEAVE concern — create/update attendance with Leave status ──────────
     const isLeave = concernType && concernType.toLowerCase().includes("leave");
+    if (isLeave && !concernDateUTC) {
+      return res.status(400).json({ message: "Leave date is missing" });
+    }
     if (isLeave) {
       let attendance = await Attendance.findOne({ user_id, currentDate: concernDateUTC });
-      if (attendance) {
+      if (attendance && attendance.punchIn) {
+        // The employee actually punched in that day - an approved leave must
+        // not rewrite a day they worked (it used to flip it to "Leave").
+      } else if (attendance) {
         attendance.status = "Leave";
         attendance.workStatus = "Leave";
         attendance.leaveApproved = true;
@@ -209,7 +219,13 @@ const approveConcern = async (req, res) => {
         });
         await Notification.updateOne({ _id: approveNotification._id }, { $set: { isRead: true } });
       }
-      await triggerSoftRefresh("Concern_Employee");
+      // Same "Concern" type submitConcern broadcasts, and what Concern.jsx's
+      // list-refresh listener actually checks for — was "Concern_Employee"
+      // here, a different string the frontend never matched, so other
+      // admins' concern list (and the sidebar badge, which doesn't filter
+      // by type but is fixed for good measure) didn't live-update on
+      // approve/reject.
+      await triggerSoftRefresh("Concern");
       return res.status(200).json({
         message: "Leave approved and attendance updated",
         concern,
@@ -217,75 +233,86 @@ const approveConcern = async (req, res) => {
       });
     }
 
-    // ── Regular punch correction concern ────────────────────────────────────
+    // ── Everything that is not a leave ──────────────────────────────────────
+    // Approving a concern is an acknowledgement only. It must NOT rewrite
+    // punch times or status. (It used to overwrite the day with 10:30-19:30,
+    // a 9h "Full Day" and "On Time" for EVERY non-leave concern type -
+    // including a late punch-in, a general "Employee Concern" or "Other".)
+    //
+    // Only a genuine missing-punch correction may add data, and only data
+    // that is missing, using times the employee actually supplied:
+    //   - no record for the day  -> create one from the supplied times
+    //   - record without punch-in -> fill the punch-in
+    //   - open record, no punch-out -> fill the punch-out
+    // Existing punch times and the Late / On Time status are never changed.
+    let attendance = null;
+    const concernKind = (concernType || "").toLowerCase();
+    const isPunchCorrection =
+      concernKind.includes("forgot clock") ||
+      concernKind.includes("punch in correction") ||
+      concernKind.includes("punch out correction");
 
-    let punchInTime = ActualPunchIn
-      ? moment(ActualPunchIn, "YYYY-MM-DD hh:mm A").tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm")
-      : moment.tz(ConcernDate + " 10:30", "YYYY-MM-DD HH:mm", "Asia/Kolkata");
+    const parseIST = (v) => {
+      if (!v) return null;
+      const m = moment.tz(v, ["YYYY-MM-DD hh:mm A", "YYYY-MM-DD HH:mm", moment.ISO_8601], true, "Asia/Kolkata");
+      return m.isValid() ? m : null;
+    };
+    const claimedIn = isPunchCorrection ? parseIST(ActualPunchIn) : null;
+    const claimedOut = isPunchCorrection ? parseIST(ActualPunchOut) : null;
+    const workStatusFor = (mins) => (mins >= 420 ? "Full Day" : mins >= 300 ? "Half Day" : "Absent");
 
-    let punchOutTime = ActualPunchOut
-      ? moment(ActualPunchOut, "YYYY-MM-DD hh:mm A").tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm")
-      : moment.tz(ConcernDate + " 19:30", "YYYY-MM-DD HH:mm", "Asia/Kolkata");
-    const workingTime = 540
-    // ✅ Determine work status based on working time
-    let workStatus = "Absent";
-    if (workingTime >= 300 && workingTime < 420) {
-      workStatus = "Half Day";
-    } else if (workingTime >= 420) {
-      workStatus = "Full Day";
-    }
+    if ((claimedIn || claimedOut) && concernDateUTC) {
+      const user = await User.findOne({ _id: user_id });
+      const shiftType = user?.type || "Day";
+      attendance = await Attendance.findOne({ user_id: user_id, currentDate: concernDateUTC });
 
-    const user = await User.findOne({ _id: user_id })
-    const punchInHour = moment(punchInTime).hour();
-    const punchInMinute = moment(punchInTime).minute();
-    let shiftType = user.type;
-    let status = "On Time";
-    if (
-      (shiftType === "Day" &&
-        (punchInHour > 10 || (punchInHour === 10 && punchInMinute > 40))) ||
-      (shiftType === "Night" &&
-        (punchInHour > 20 || (punchInHour === 20 && punchInMinute > 10)))
-    ) {
-      status = "Late";
-    }
-
-    // ✅ Find existing attendance
-    let attendance = await Attendance.findOne({ user_id: user_id, currentDate: concernDateUTC });
-
-    if (attendance) {
-      // ✅ Update existing attendance, preserving `firstPunchIn`
-      if (!attendance.firstPunchIn) {
-        attendance.firstPunchIn = punchInTime;
+      if (!attendance && claimedIn) {
+        const h = claimedIn.hour(), mi = claimedIn.minute();
+        const late =
+          (shiftType === "Day" && (h > 10 || (h === 10 && mi > 40))) ||
+          (shiftType === "Night" && (h > 20 || (h === 20 && mi > 10)));
+        const mins = claimedOut ? Math.max(claimedOut.diff(claimedIn, "minutes"), 0) : 0;
+        attendance = new Attendance({
+          user_id: user_id,
+          currentDate: concernDateUTC,
+          firstPunchIn: claimedIn.toDate(),
+          punchIn: claimedIn.toDate(),
+          punchOut: claimedOut ? claimedOut.toDate() : undefined,
+          workingTime: mins,
+          shiftType,
+          status: late ? "Late" : "On Time",
+          workStatus: claimedOut ? workStatusFor(mins) : "Absent",
+          ip: "System Generated",
+          isPunchedIn: false,
+          leaveStatus: "Pending",
+          leaveApproved: false,
+        });
+        await attendance.save();
+      } else if (attendance && !attendance.punchIn && claimedIn) {
+        const h = claimedIn.hour(), mi = claimedIn.minute();
+        const late =
+          (shiftType === "Day" && (h > 10 || (h === 10 && mi > 40))) ||
+          (shiftType === "Night" && (h > 20 || (h === 20 && mi > 10)));
+        attendance.firstPunchIn = claimedIn.toDate();
+        attendance.punchIn = claimedIn.toDate();
+        attendance.shiftType = shiftType;
+        attendance.status = late ? "Late" : "On Time";
+        if (claimedOut) {
+          const mins = Math.max(claimedOut.diff(claimedIn, "minutes"), 0);
+          attendance.punchOut = claimedOut.toDate();
+          attendance.workingTime = mins;
+          attendance.workStatus = workStatusFor(mins);
+        }
+        attendance.isPunchedIn = false;
+        await attendance.save();
+      } else if (attendance && attendance.punchIn && !attendance.punchOut && claimedOut) {
+        const mins = Math.max(claimedOut.diff(moment(attendance.punchIn), "minutes"), 0);
+        attendance.punchOut = claimedOut.toDate();
+        attendance.workingTime = (attendance.workingTime || 0) + mins;
+        attendance.workStatus = workStatusFor(attendance.workingTime);
+        attendance.isPunchedIn = false;
+        await attendance.save();
       }
-      attendance.punchIn = punchInTime;
-      attendance.punchOut = punchOutTime;
-      attendance.workingTime = workingTime;
-      attendance.shiftType = shiftType;
-      attendance.status = status;
-      attendance.workStatus = workStatus;
-      attendance.ip = "System Generated";
-      attendance.isPunchedIn = false;
-
-      await attendance.save();
-    } else {
-      // ✅ Create new attendance record
-      attendance = new Attendance({
-        user_id: user_id,
-        currentDate: concernDateUTC,
-        firstPunchIn: punchInTime, // First punch-in is only set for new records
-        punchIn: punchInTime,
-        punchOut: punchOutTime,
-        workingTime: workingTime,
-        shiftType: shiftType,
-        status: status,
-        workStatus: workStatus,
-        ip: "System Generated",
-        isPunchedIn: false,
-        leaveStatus: "Pending",
-        leaveApproved: false,
-      });
-
-      await attendance.save();
     }
     concern.status = "Approved";
     await concern.save();
@@ -312,9 +339,9 @@ const approveConcern = async (req, res) => {
       );
     }
     // console.log("approved")
-    await triggerSoftRefresh("Concern_Employee");
+    await triggerSoftRefresh("Concern");
     res.status(200).json({
-      message: "Concern approved and attendance updated",
+      message: "Concern approved",
       concern,
       attendance,
     });
@@ -361,7 +388,7 @@ const rejectConcern = async (req, res) => {
         { $set: { isRead: true } }
       );
     }
-    await triggerSoftRefresh("Concern_Employee");
+    await triggerSoftRefresh("Concern");
     res.status(200).json({ message: "Concern rejected successfully", concern });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
